@@ -75,7 +75,7 @@ cat > "${CONFIG_FILE}" <<EOF
 }
 EOF
 
-chmod 600 "${CONFIG_FILE}"
+chmod 644 "${CONFIG_FILE}"
 
 echo "[6/9] Enabling and restarting Shadowsocks service..."
 
