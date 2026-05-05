@@ -120,7 +120,8 @@ rules:
   - MATCH,GLOBAL
 EOF
 
-chmod 600 "${INFO_FILE}" "${CLASH_FILE}"
+chmod 644 "${CLASH_FILE}"
+chmod 600 "${INFO_FILE}"
 
 echo ""
 echo "======================================"
