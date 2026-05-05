@@ -6,9 +6,9 @@
 
 # English
 
-One-click AWS EC2 Shadowsocks setup script with auto-generated Clash configuration.
+One-click AWS EC2 Shadowsocks setup script with auto-generated Clash configuration and URL link.
 
-This project deploys a Shadowsocks server on an AWS EC2 Ubuntu instance and generates a Clash-compatible configuration file automatically.
+This project deploys a Shadowsocks server on an AWS EC2 Ubuntu instance and automatically generates both a Clash-compatible YAML configuration file and a Shadowsocks URL for importing.
 
 ## Default Settings
 
@@ -281,7 +281,85 @@ sudo cat /opt/aws-clash-ss/clash.yaml
 
 ---
 
-## 8. Generated Clash Configuration
+## 8. Generated Client Configuration
+
+After installation, the script generates two types of client configuration:
+
+1. A Shadowsocks `URL` link for any clients.
+2. A Clash YAML configuration file for Clash-compatible clients.
+
+---
+
+### 8.1 Shadowsocks URL
+
+The script generates a standard Shadowsocks URL.
+
+This is the easiest option for mobile clients such as:
+
+- Android: Surfboard
+- iOS: Shadowrocket
+
+The URL is printed at the end of the installation output:
+
+```text
+URL link:
+ss://...
+```
+
+It is also saved on the EC2 instance:
+
+```text
+/opt/aws-clash-ss/ss-uri.txt
+```
+
+View the URL on the EC2 instance:
+
+```bash
+sudo cat /opt/aws-clash-ss/ss-uri.txt
+```
+
+Download it to your local Windows Downloads folder using CMD:
+
+```cmd
+scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[EC2_PUBLIC_IP]:/opt/aws-clash-ss/ss-uri.txt %USERPROFILE%\Downloads\ss-uri.txt
+```
+
+Example:
+
+```cmd
+scp -i %USERPROFILE%\Downloads\aws-clash-key.pem ubuntu@13.232.43.141:/opt/aws-clash-ss/ss-uri.txt %USERPROFILE%\Downloads\ss-uri.txt
+```
+
+If your mobile client supports importing from clipboard, you can simply copy the `ss://` URL and paste it into the app.
+
+If your mobile client does not support URL import, add a Shadowsocks server manually using the following fields:
+
+```text
+Type: Shadowsocks
+Server: YOUR_EC2_PUBLIC_IP
+Port: 8388
+Method / Cipher: aes-256-gcm
+Password: YOUR_GENERATED_PASSWORD
+UDP: Enable
+```
+
+---
+
+### 8.2 Clash YAML Configuration
+
+The script also generates a Clash-compatible YAML configuration file.
+
+The file is saved on the EC2 instance:
+
+```text
+/opt/aws-clash-ss/clash.yaml
+```
+
+View the Clash configuration:
+
+```bash
+sudo cat /opt/aws-clash-ss/clash.yaml
+```
 
 The generated Clash configuration looks like this:
 
@@ -626,9 +704,9 @@ This project is released under the MIT License.
 
 # 中文说明
 
-AWS EC2 一键部署 Shadowsocks，并自动生成 Clash 配置文件。
+AWS EC2 一键部署 Shadowsocks，并自动生成 Clash 配置文件和手机端 URL 链接。
 
-本项目用于在 AWS EC2 Ubuntu 服务器上一键部署 Shadowsocks 服务端，并自动生成 Clash 可导入的配置文件。
+本项目用于在 AWS EC2 Ubuntu 服务器上一键部署 Shadowsocks 服务端，并自动生成 Clash 可导入的 YAML 配置文件，以及用于一键导入的 Shadowsocks URL 链接。
 
 ## 默认配置
 
@@ -902,7 +980,85 @@ sudo cat /opt/aws-clash-ss/clash.yaml
 
 ---
 
-## 8. 生成的 Clash 配置
+## 8. 生成的客户端配置
+
+安装完成后，脚本会生成两种客户端配置：
+
+1. 适合所有客户端的 URL 链接。
+2. 适合 Clash 类客户端的 YAML 配置文件。
+
+---
+
+### 8.1 Shadowsocks URL 链接
+
+脚本会生成一个标准的 Shadowsocks URL 链接。
+
+这个链接适合所有客户端，例如：
+
+- Android: Surfboard
+- iOS: Shadowrocket
+
+`URL` 链接会在安装完成后的终端输出中显示：
+
+```text
+URL link:
+ss://...
+```
+
+同时也会保存到 EC2 服务器上：
+
+```text
+/opt/aws-clash-ss/ss-uri.txt
+```
+
+在 EC2 服务器上查看该链接：
+
+```bash
+sudo cat /opt/aws-clash-ss/ss-uri.txt
+```
+
+使用 Windows CMD 下载到本机 Downloads 文件夹：
+
+```cmd
+scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[EC2_PUBLIC_IP]:/opt/aws-clash-ss/ss-uri.txt %USERPROFILE%\Downloads\ss-uri.txt
+```
+
+示例：
+
+```cmd
+scp -i %USERPROFILE%\Downloads\aws-clash-key.pem ubuntu@13.232.43.141:/opt/aws-clash-ss/ss-uri.txt %USERPROFILE%\Downloads\ss-uri.txt
+```
+
+如果手机端客户端支持从剪贴板导入，可以直接复制 `URL` 链接并粘贴到 App 中。
+
+如果手机端客户端不支持直接导入 `URL`，也可以手动添加 Shadowsocks 节点：
+
+```text
+Type: Shadowsocks
+Server: YOUR_EC2_PUBLIC_IP
+Port: 8388
+Method / Cipher: aes-256-gcm
+Password: YOUR_GENERATED_PASSWORD
+UDP: Enable
+```
+
+---
+
+### 8.2 Clash YAML 配置文件
+
+脚本也会生成一个 Clash 兼容的 YAML 配置文件。
+
+该文件保存在 EC2 服务器上：
+
+```text
+/opt/aws-clash-ss/clash.yaml
+```
+
+查看 Clash 配置文件：
+
+```bash
+sudo cat /opt/aws-clash-ss/clash.yaml
+```
 
 生成的 Clash 配置大致如下：
 
