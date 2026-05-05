@@ -787,8 +787,7 @@ t3.micro
 
 ```text
 t4g.micro
-
----
+```
 
 ### 2.4 创建 Key Pair
 
