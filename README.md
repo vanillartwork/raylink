@@ -211,12 +211,6 @@ Run this command on the EC2 instance:
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sudo bash
 ```
 
-If you see errors such as `$'\r': command not found`, it usually means the script has Windows CRLF line endings. You can use the command below instead:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sed 's/\r$//' | sudo bash
-```
-
 ---
 
 ## 5. Custom Port
@@ -836,12 +830,6 @@ ubuntu
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sudo bash
-```
-
-如果看到 `$'\r': command not found` 之类的错误，通常说明脚本是 Windows CRLF 换行。可以改用下面的命令：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sed 's/\r$//' | sudo bash
 ```
 
 ---
