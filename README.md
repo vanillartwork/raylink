@@ -71,7 +71,6 @@ Recommended AMI:
 
 ```text
 Ubuntu Server 24.04 LTS
-
 ```
 
 Do not choose Windows for this setup. Windows Server costs more and is not suitable for this lightweight proxy service.
@@ -84,7 +83,6 @@ For personal use, the recommended instance type is:
 
 ```text
 t3.micro
-
 ```
 
 If you want a cheaper ARM-based instance, you may choose:
@@ -619,40 +617,10 @@ If you no longer need the EC2 instance, stop or terminate it from the AWS consol
 ## 17. Security Notes
 
 Do not upload the following files to GitHub:
-
-```text
-*.pem
-*.key
-clash.yaml
-server-info.txt
-.env
-```
-
-These files may contain:
-
 - AWS SSH private key
 - Shadowsocks password
 - Server IP
 - Proxy configuration
-
-Recommended `.gitignore`:
-
-```gitignore
-*.pem
-*.key
-*.log
-server-info.txt
-clash.yaml
-.env
-```
-
-Recommended `.gitattributes`:
-
-```gitattributes
-*.sh text eol=lf
-```
-
-This helps prevent shell scripts from being uploaded with Windows CRLF line endings.
 
 ---
 
@@ -729,7 +697,6 @@ Launch instance
 
 ```text
 Ubuntu Server 24.04 LTS
-
 ```
 
 不建议选择 Windows，因为 Windows Server 成本更高，也不适合运行这种轻量级代理服务。
@@ -742,7 +709,6 @@ Ubuntu Server 24.04 LTS
 
 ```text
 t3.micro
-
 ```
 
 如果你想使用更便宜的 ARM 架构实例，可以选择：
@@ -1278,40 +1244,10 @@ sudo rm -rf /opt/aws-clash-ss
 ## 17. 安全提醒
 
 请不要把以下文件上传到 GitHub：
-
-```text
-*.pem
-*.key
-clash.yaml
-server-info.txt
-.env
-```
-
-这些文件可能包含：
-
 - AWS SSH 私钥
 - Shadowsocks 密码
 - 服务器 IP
 - 代理配置
-
-推荐的 `.gitignore`：
-
-```gitignore
-*.pem
-*.key
-*.log
-server-info.txt
-clash.yaml
-.env
-```
-
-推荐的 `.gitattributes`：
-
-```gitattributes
-*.sh text eol=lf
-```
-
-这可以避免 Shell 脚本被上传成 Windows CRLF 换行格式。
 
 ---
 
