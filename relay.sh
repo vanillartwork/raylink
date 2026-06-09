@@ -149,8 +149,7 @@ cat > "${SINGBOX_CONFIG}" <<EOF
       "listen": "0.0.0.0",
       "listen_port": ${DIRECT_PORT},
       "method": "${METHOD}",
-      "password": "${RELAY_DIRECT_PASSWORD}",
-      "network": "tcp_and_udp"
+      "password": "${RELAY_DIRECT_PASSWORD}"
     },
     {
       "type": "shadowsocks",
