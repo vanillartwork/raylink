@@ -2,35 +2,39 @@
 set -euo pipefail
 
 # ==========================================================
-# Cloud VPS Shadowsocks + Clash Setup v1.1.1
+# Cloud VPS Shadowsocks + Clash Setup v1.1.2
 # One-click Shadowsocks server with Clash config and ss:// links
 # Works on AWS EC2, Google Cloud Compute Engine, and most Ubuntu VPS
 # ==========================================================
 
-PORT="8388"
-METHOD="aes-256-gcm"
-CONTAINER_NAME="ss-server"
-IMAGE_NAME="shadowsocks/shadowsocks-libev"
-INSTALL_DIR="/opt/aws-clash-ss"
+PORT="${PORT:-8388}"
+METHOD="${METHOD:-aes-256-gcm}"
+CONTAINER_NAME="${CONTAINER_NAME:-ss-server}"
+IMAGE_NAME="${IMAGE_NAME:-shadowsocks/shadowsocks-libev}"
+INSTALL_DIR="${INSTALL_DIR:-/opt/aws-clash-ss}"
 
 CLASH_FILE="${INSTALL_DIR}/clash.yaml"
 INFO_FILE="${INSTALL_DIR}/server-info.txt"
 SS_FILE="${INSTALL_DIR}/ss-uri.txt"
 
-NODE_NAME="AWS-SS"
+NODE_NAME="${NODE_NAME:-AWS-SS}"
 
 echo "======================================"
-echo " Cloud VPS Shadowsocks + Clash Setup v1.1.1"
+echo " Cloud VPS Shadowsocks + Clash Setup v1.1.2"
 echo " Port: ${PORT}"
 echo " Method: ${METHOD}"
 echo " Container: ${CONTAINER_NAME}"
 echo " Image: ${IMAGE_NAME}"
 echo " Install directory: ${INSTALL_DIR}"
+echo " Node name: ${NODE_NAME}"
 echo "======================================"
 
 if [ "${EUID}" -ne 0 ]; then
     echo "Please run this script with sudo:"
     echo "sudo bash clash_ss.sh"
+    echo ""
+    echo "Example with custom port:"
+    echo "sudo PORT=443 bash clash_ss.sh"
     exit 1
 fi
 
