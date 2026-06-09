@@ -2,8 +2,9 @@
 set -euo pipefail
 
 # ==========================================================
-# AWS EC2 Shadowsocks + Clash Setup v1.1
+# Cloud VPS Shadowsocks + Clash Setup v1.1.1
 # One-click Shadowsocks server with Clash config and ss:// links
+# Works on AWS EC2, Google Cloud Compute Engine, and most Ubuntu VPS
 # ==========================================================
 
 PORT="8388"
@@ -19,7 +20,7 @@ SS_FILE="${INSTALL_DIR}/ss-uri.txt"
 NODE_NAME="AWS-SS"
 
 echo "======================================"
-echo " AWS EC2 Shadowsocks + Clash Setup v1.1"
+echo " Cloud VPS Shadowsocks + Clash Setup v1.1.1"
 echo " Port: ${PORT}"
 echo " Method: ${METHOD}"
 echo " Container: ${CONTAINER_NAME}"
@@ -37,6 +38,18 @@ if ! command -v apt >/dev/null 2>&1; then
     echo "Error: this script is designed for Ubuntu/Debian systems using apt."
     exit 1
 fi
+
+is_ipv4() {
+    echo "$1" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$'
+}
+
+base64_one_line() {
+    if base64 --help 2>/dev/null | grep -q -- '-w'; then
+        base64 -w 0
+    else
+        base64 | tr -d '\n'
+    fi
+}
 
 mkdir -p "${INSTALL_DIR}"
 
@@ -67,28 +80,59 @@ systemctl start docker
 echo "[5/10] Generating Shadowsocks password..."
 PASSWORD="$(openssl rand -hex 16)"
 
-echo "[6/10] Detecting EC2 public IPv4..."
+echo "[6/10] Detecting public IPv4..."
 
-TOKEN="$(curl -s -m 3 -X PUT "http://169.254.169.254/latest/api/token" \
-    -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" || true)"
+PUBLIC_IP=""
+
+# Try AWS EC2 metadata.
+TOKEN="$(curl -fsS -m 3 -X PUT "http://169.254.169.254/latest/api/token" \
+    -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" 2>/dev/null || true)"
 
 if [ -n "${TOKEN}" ]; then
-    PUBLIC_IP="$(curl -s -m 3 \
+    CANDIDATE_IP="$(curl -fsS -m 3 \
         -H "X-aws-ec2-metadata-token: ${TOKEN}" \
-        http://169.254.169.254/latest/meta-data/public-ipv4 || true)"
-else
-    PUBLIC_IP=""
+        "http://169.254.169.254/latest/meta-data/public-ipv4" 2>/dev/null || true)"
+
+    if is_ipv4 "${CANDIDATE_IP}"; then
+        PUBLIC_IP="${CANDIDATE_IP}"
+    fi
+fi
+
+# Try Google Cloud metadata.
+if [ -z "${PUBLIC_IP}" ]; then
+    CANDIDATE_IP="$(curl -fsS -m 3 \
+        -H "Metadata-Flavor: Google" \
+        "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip" 2>/dev/null || true)"
+
+    if is_ipv4 "${CANDIDATE_IP}"; then
+        PUBLIC_IP="${CANDIDATE_IP}"
+    fi
+fi
+
+# Fallback to public IP services.
+if [ -z "${PUBLIC_IP}" ]; then
+    for IP_SERVICE in \
+        "https://api.ipify.org" \
+        "https://ifconfig.me" \
+        "https://ipinfo.io/ip" \
+        "http://4.ipw.cn"
+    do
+        CANDIDATE_IP="$(curl -4 -fsS -m 5 "${IP_SERVICE}" 2>/dev/null || true)"
+
+        if is_ipv4 "${CANDIDATE_IP}"; then
+            PUBLIC_IP="${CANDIDATE_IP}"
+            break
+        fi
+    done
 fi
 
 if [ -z "${PUBLIC_IP}" ]; then
-    PUBLIC_IP="$(curl -4 -s -m 5 https://api.ipify.org || true)"
+    PUBLIC_IP="YOUR_SERVER_PUBLIC_IP"
+    echo "Warning: failed to detect public IPv4 automatically."
+    echo "Please replace YOUR_SERVER_PUBLIC_IP in the generated Clash config manually."
 fi
 
-if [ -z "${PUBLIC_IP}" ]; then
-    PUBLIC_IP="YOUR_EC2_PUBLIC_IP"
-    echo "Warning: failed to detect EC2 public IPv4 automatically."
-    echo "Please replace YOUR_EC2_PUBLIC_IP in the generated Clash config manually."
-fi
+echo "Detected public IPv4: ${PUBLIC_IP}"
 
 echo "[7/10] Removing old Shadowsocks container if it exists..."
 docker stop "${CONTAINER_NAME}" 2>/dev/null || true
@@ -183,12 +227,12 @@ echo "[10/10] Generating Shadowsocks ss:// links for mobile clients..."
 
 # SIP002 format:
 # ss://base64url(method:password)@server:port#name
-SS_USERINFO="$(printf '%s' "${METHOD}:${PASSWORD}" | base64 | tr -d '\n' | tr '+/' '-_' | sed 's/=*$//')"
+SS_USERINFO="$(printf '%s' "${METHOD}:${PASSWORD}" | base64_one_line | tr '+/' '-_' | sed 's/=*$//')"
 SS_URI="ss://${SS_USERINFO}@${PUBLIC_IP}:${PORT}#${NODE_NAME}"
 
 # Legacy format:
 # ss://base64(method:password@server:port)#name
-SS_LEGACY_BASE64="$(printf '%s' "${METHOD}:${PASSWORD}@${PUBLIC_IP}:${PORT}" | base64 | tr -d '\n')"
+SS_LEGACY_BASE64="$(printf '%s' "${METHOD}:${PASSWORD}@${PUBLIC_IP}:${PORT}" | base64_one_line)"
 SS_LEGACY_URI="ss://${SS_LEGACY_BASE64}#${NODE_NAME}"
 
 cat > "${SS_FILE}" <<EOF
@@ -235,14 +279,14 @@ echo "Shadowsocks logs:"
 docker logs "${CONTAINER_NAME}" || true
 
 echo ""
-echo "Files saved on EC2:"
+echo "Files saved on server:"
 echo "${INFO_FILE}"
 echo "${CLASH_FILE}"
 echo "${SS_FILE}"
 
 echo ""
 echo "Important:"
-echo "Make sure your AWS Security Group allows:"
+echo "Make sure your cloud firewall/security group allows:"
 echo "TCP ${PORT} from 0.0.0.0/0"
 echo "UDP ${PORT} from 0.0.0.0/0"
 echo ""
