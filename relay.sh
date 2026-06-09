@@ -24,6 +24,8 @@ TARGET_PASSWORD="${TARGET_PASSWORD:-}"
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Please run this script as root."
+  echo "Example:"
+  echo "sudo bash relay.sh"
   exit 1
 fi
 
@@ -157,8 +159,7 @@ cat > "${SINGBOX_CONFIG}" <<EOF
       "listen": "0.0.0.0",
       "listen_port": ${FORWARD_PORT},
       "method": "${METHOD}",
-      "password": "${RELAY_FORWARD_PASSWORD}",
-      "network": "tcp_and_udp"
+      "password": "${RELAY_FORWARD_PASSWORD}"
     }
   ],
   "outbounds": [
