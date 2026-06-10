@@ -158,8 +158,27 @@ load_or_generate_reality_credentials() {
   if [ -z "${PRIVATE_KEY}" ] || [ -z "${PUBLIC_KEY}" ]; then
     local keypair
     keypair="$(${XRAY_BIN} x25519)"
-    PRIVATE_KEY="$(printf '%s\n' "${keypair}" | awk -F': ' '/Private key/ {print $2}' | tr -d ' \r\n\t')"
-    PUBLIC_KEY="$(printf '%s\n' "${keypair}" | awk -F': ' '/Public key/ {print $2}' | tr -d ' \r\n\t')"
+
+    # Xray x25519 output differs by version. Examples:
+    #   Private key: xxx
+    #   Public key: xxx
+    # or in newer versions:
+    #   PrivateKey: xxx
+    #   Password (PublicKey): xxx
+    PRIVATE_KEY="$(printf '%s
+' "${keypair}" | awk -F':[[:space:]]*' 'tolower($1) ~ /^private[[:space:]]*key$/ || tolower($1) ~ /^privatekey$/ {print $2; exit}' | tr -d ' 
+	')"
+    PUBLIC_KEY="$(printf '%s
+' "${keypair}" | awk -F':[[:space:]]*' 'tolower($1) ~ /^public[[:space:]]*key$/ || tolower($1) ~ /^publickey$/ || tolower($1) ~ /password.*publickey/ {print $2; exit}' | tr -d ' 
+	')"
+
+    if [ -z "${PRIVATE_KEY}" ] || [ -z "${PUBLIC_KEY}" ]; then
+      echo "Failed to parse Reality x25519 key pair."
+      echo "xray x25519 output was:"
+      printf '%s
+' "${keypair}"
+      exit 1
+    fi
   fi
 
   if [ -z "${SHORT_ID}" ]; then
