@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generic Xray VLESS Reality terminal node with optional HTTP Clash subscription hosting.
-# Tested syntax with: bash -n
+# Generic Xray VLESS Reality terminal node with optional HTTP Clash/Mihomo subscription hosting.
+# Features:
+# - VLESS Reality terminal node
+# - Optional HTTP subscription hosting through nginx
+# - Persistent UUID / Reality keys / shortId / client fingerprint
+# - Public IPv4 auto detection
+# - Reality target TLS 1.3 sanity check
+# - Basic TCP tuning for small VPS instances
 
-PORT="${PORT:-10000}"
+PORT="${PORT:-443}"
 NODE_NAME="${NODE_NAME:-Terminal-Reality}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/cloud-xray-terminal}"
 XRAY_BIN="${XRAY_BIN:-/usr/local/bin/xray}"
@@ -18,13 +24,23 @@ INFO_FILE="${INSTALL_DIR}/server-info.txt"
 VLESS_FILE="${INSTALL_DIR}/vless-uri.txt"
 REALITY_ENV_FILE="${INSTALL_DIR}/reality.env"
 
-# Reality settings. REALITY_SERVER_NAME should match REALITY_DEST host in most cases.
-REALITY_DEST="${REALITY_DEST:-www.microsoft.com:443}"
-REALITY_SERVER_NAME="${REALITY_SERVER_NAME:-www.microsoft.com}"
-CLIENT_FINGERPRINT="${CLIENT_FINGERPRINT:-chrome}"
-FLOW="${FLOW:-xtls-rprx-vision}"
+# Reality settings.
+# REALITY_SERVER_NAME should usually match the host part of REALITY_DEST.
+# If these are left empty, saved values from ${REALITY_ENV_FILE} will be reused.
+# If no saved values exist, defaults below will be used.
+REALITY_DEST="${REALITY_DEST:-}"
+REALITY_SERVER_NAME="${REALITY_SERVER_NAME:-}"
+CLIENT_FINGERPRINT="${CLIENT_FINGERPRINT:-}"
+CLIENT_FINGERPRINT_POOL="${CLIENT_FINGERPRINT_POOL:-chrome firefox safari edge}"
+FLOW="${FLOW:-}"
 
-# Optional Clash subscription hosting. Disabled by default.
+# Check the target site with openssl s_client -tls1_3 before writing config.
+# The check is non-fatal by default. Set REALITY_CHECK_STRICT=true to fail on check failure.
+CHECK_REALITY_TARGET="${CHECK_REALITY_TARGET:-true}"
+REALITY_CHECK_STRICT="${REALITY_CHECK_STRICT:-false}"
+REALITY_CHECK_LOG="${REALITY_CHECK_LOG:-/tmp/reality_target_check.log}"
+
+# Optional Clash/Mihomo subscription hosting. Disabled by default.
 ENABLE_SUBSCRIPTION="${ENABLE_SUBSCRIPTION:-false}"
 SUB_PORT="${SUB_PORT:-8080}"
 SUB_TOKEN="${SUB_TOKEN:-}"
@@ -52,6 +68,21 @@ valid_ipv4() {
   printf '%s' "${1:-}" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$'
 }
 
+install_required_packages() {
+  local packages=(ca-certificates)
+
+  command -v curl >/dev/null 2>&1 || packages+=(curl)
+  command -v openssl >/dev/null 2>&1 || packages+=(openssl)
+  command -v unzip >/dev/null 2>&1 || packages+=(unzip)
+  command -v ss >/dev/null 2>&1 || packages+=(iproute2)
+  command -v awk >/dev/null 2>&1 || packages+=(gawk)
+  command -v grep >/dev/null 2>&1 || packages+=(grep)
+  command -v timeout >/dev/null 2>&1 || packages+=(coreutils)
+
+  apt update
+  apt install -y "${packages[@]}"
+}
+
 detect_public_ipv4() {
   if [ -n "${PUBLIC_IP:-}" ]; then
     printf '%s\n' "${PUBLIC_IP}"
@@ -76,6 +107,79 @@ detect_public_ipv4() {
   done
 
   return 1
+}
+
+pick_random_fingerprint() {
+  local pool_string="${CLIENT_FINGERPRINT_POOL:-chrome firefox safari edge}"
+  local -a pool
+  local count idx
+
+  # shellcheck disable=SC2206
+  pool=(${pool_string})
+  count="${#pool[@]}"
+
+  if [ "${count}" -eq 0 ]; then
+    printf '%s\n' "chrome"
+    return 0
+  fi
+
+  idx=$((RANDOM % count))
+  printf '%s\n' "${pool[${idx}]}"
+}
+
+normalize_reality_target() {
+  if [ -z "${REALITY_DEST}" ]; then
+    REALITY_DEST="www.microsoft.com:443"
+  fi
+
+  if [ -z "${REALITY_SERVER_NAME}" ]; then
+    REALITY_SERVER_NAME="${REALITY_DEST%%:*}"
+  fi
+
+  if [[ "${REALITY_DEST}" != *:* ]]; then
+    REALITY_DEST="${REALITY_DEST}:443"
+  fi
+}
+
+check_reality_target() {
+  if ! is_true "${CHECK_REALITY_TARGET}"; then
+    echo "Skip Reality target check because CHECK_REALITY_TARGET=false"
+    return 0
+  fi
+
+  local dest_host dest_port
+  dest_host="${REALITY_DEST%%:*}"
+  dest_port="${REALITY_DEST##*:}"
+
+  if [ -z "${dest_host}" ] || [ -z "${dest_port}" ] || [ "${dest_host}" = "${dest_port}" ]; then
+    echo "Warning: invalid REALITY_DEST=${REALITY_DEST}; expected host:port."
+    if is_true "${REALITY_CHECK_STRICT}"; then
+      exit 1
+    fi
+    return 0
+  fi
+
+  echo "Checking Reality target with TLS 1.3: ${REALITY_SERVER_NAME} -> ${dest_host}:${dest_port}"
+
+  if timeout 10 openssl s_client \
+    -connect "${dest_host}:${dest_port}" \
+    -servername "${REALITY_SERVER_NAME}" \
+    -tls1_3 \
+    -alpn h2 \
+    </dev/null >"${REALITY_CHECK_LOG}" 2>&1; then
+    echo "Reality target TLS 1.3 check passed."
+    return 0
+  fi
+
+  echo "Warning: Reality target TLS 1.3 check failed."
+  echo "Check log: ${REALITY_CHECK_LOG}"
+  echo "You can still continue, but consider changing REALITY_DEST / REALITY_SERVER_NAME."
+
+  if is_true "${REALITY_CHECK_STRICT}"; then
+    exit 1
+  fi
+
+  return 0
 }
 
 install_xray() {
@@ -141,6 +245,18 @@ install_xray() {
 }
 
 load_or_generate_reality_credentials() {
+  local input_uuid input_private_key input_public_key input_short_id
+  local input_reality_dest input_reality_server_name input_client_fingerprint input_flow
+
+  input_uuid="${UUID:-}"
+  input_private_key="${PRIVATE_KEY:-}"
+  input_public_key="${PUBLIC_KEY:-}"
+  input_short_id="${SHORT_ID:-}"
+  input_reality_dest="${REALITY_DEST:-}"
+  input_reality_server_name="${REALITY_SERVER_NAME:-}"
+  input_client_fingerprint="${CLIENT_FINGERPRINT:-}"
+  input_flow="${FLOW:-}"
+
   if is_true "${RESET_REALITY_CREDENTIALS}"; then
     rm -f "${REALITY_ENV_FILE}"
   fi
@@ -149,6 +265,26 @@ load_or_generate_reality_credentials() {
     # This file is created by this script and chmod 600.
     # shellcheck disable=SC1090
     . "${REALITY_ENV_FILE}"
+  fi
+
+  # Explicit environment variables from this run should override saved values.
+  [ -n "${input_uuid}" ] && UUID="${input_uuid}"
+  [ -n "${input_private_key}" ] && PRIVATE_KEY="${input_private_key}"
+  [ -n "${input_public_key}" ] && PUBLIC_KEY="${input_public_key}"
+  [ -n "${input_short_id}" ] && SHORT_ID="${input_short_id}"
+  [ -n "${input_reality_dest}" ] && REALITY_DEST="${input_reality_dest}"
+  [ -n "${input_reality_server_name}" ] && REALITY_SERVER_NAME="${input_reality_server_name}"
+  [ -n "${input_client_fingerprint}" ] && CLIENT_FINGERPRINT="${input_client_fingerprint}"
+  [ -n "${input_flow}" ] && FLOW="${input_flow}"
+
+  FLOW="${FLOW:-xtls-rprx-vision}"
+  normalize_reality_target
+
+  if [ -z "${CLIENT_FINGERPRINT}" ]; then
+    CLIENT_FINGERPRINT="$(pick_random_fingerprint)"
+    echo "Generated client fingerprint: ${CLIENT_FINGERPRINT}"
+  else
+    echo "Using client fingerprint: ${CLIENT_FINGERPRINT}"
   fi
 
   if [ -z "${UUID}" ]; then
@@ -165,18 +301,13 @@ load_or_generate_reality_credentials() {
     # or in newer versions:
     #   PrivateKey: xxx
     #   Password (PublicKey): xxx
-    PRIVATE_KEY="$(printf '%s
-' "${keypair}" | awk -F':[[:space:]]*' 'tolower($1) ~ /^private[[:space:]]*key$/ || tolower($1) ~ /^privatekey$/ {print $2; exit}' | tr -d ' 
-	')"
-    PUBLIC_KEY="$(printf '%s
-' "${keypair}" | awk -F':[[:space:]]*' 'tolower($1) ~ /^public[[:space:]]*key$/ || tolower($1) ~ /^publickey$/ || tolower($1) ~ /password.*publickey/ {print $2; exit}' | tr -d ' 
-	')"
+    PRIVATE_KEY="$(printf '%s\n' "${keypair}" | awk -F':[[:space:]]*' 'tolower($1) ~ /^private[[:space:]]*key$/ || tolower($1) ~ /^privatekey$/ {print $2; exit}' | tr -d ' \r\n\t')"
+    PUBLIC_KEY="$(printf '%s\n' "${keypair}" | awk -F':[[:space:]]*' 'tolower($1) ~ /^public[[:space:]]*key$/ || tolower($1) ~ /^publickey$/ || tolower($1) ~ /password.*publickey/ {print $2; exit}' | tr -d ' \r\n\t')"
 
     if [ -z "${PRIVATE_KEY}" ] || [ -z "${PUBLIC_KEY}" ]; then
       echo "Failed to parse Reality x25519 key pair."
       echo "xray x25519 output was:"
-      printf '%s
-' "${keypair}"
+      printf '%s\n' "${keypair}"
       exit 1
     fi
   fi
@@ -195,6 +326,10 @@ load_or_generate_reality_credentials() {
     printf 'PRIVATE_KEY=%q\n' "${PRIVATE_KEY}"
     printf 'PUBLIC_KEY=%q\n' "${PUBLIC_KEY}"
     printf 'SHORT_ID=%q\n' "${SHORT_ID}"
+    printf 'REALITY_DEST=%q\n' "${REALITY_DEST}"
+    printf 'REALITY_SERVER_NAME=%q\n' "${REALITY_SERVER_NAME}"
+    printf 'CLIENT_FINGERPRINT=%q\n' "${CLIENT_FINGERPRINT}"
+    printf 'FLOW=%q\n' "${FLOW}"
   } > "${REALITY_ENV_FILE}"
   chmod 600 "${REALITY_ENV_FILE}"
 }
@@ -426,21 +561,26 @@ echo "=========================================="
 echo " Xray VLESS Reality Generic Terminal Setup"
 echo "=========================================="
 
-echo "[1/10] Installing required packages..."
-apt update
-apt install -y curl ca-certificates openssl unzip
+echo "[1/11] Installing required packages..."
+install_required_packages
 
-echo "[2/10] Enabling BBR..."
-cat > /etc/sysctl.d/99-cloud-xray-bbr.conf <<SYSCTL_EOF
+echo "[2/11] Applying TCP tuning..."
+cat > /etc/sysctl.d/99-cloud-xray-tuning.conf <<SYSCTL_EOF
 net.core.default_qdisc=fq
 net.ipv4.tcp_congestion_control=bbr
+net.ipv4.tcp_fastopen=3
+net.ipv4.tcp_mtu_probing=1
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+net.core.somaxconn=4096
+net.ipv4.tcp_max_syn_backlog=4096
 SYSCTL_EOF
 sysctl --system >/dev/null 2>&1 || true
 
-echo "[3/10] Preparing directories..."
+echo "[3/11] Preparing directories..."
 mkdir -p "${INSTALL_DIR}" "${XRAY_CONFIG_DIR}" "${XRAY_SHARE_DIR}"
 
-echo "[4/10] Detecting public IPv4..."
+echo "[4/11] Detecting public IPv4..."
 PUBLIC_IP="$(detect_public_ipv4 || true)"
 if [ -z "${PUBLIC_IP}" ]; then
   echo "Failed to detect public IPv4. You can rerun with PUBLIC_IP=x.x.x.x"
@@ -448,18 +588,21 @@ if [ -z "${PUBLIC_IP}" ]; then
 fi
 echo "Public IPv4: ${PUBLIC_IP}"
 
-echo "[5/10] Stopping old services that may occupy the terminal port..."
+echo "[5/11] Stopping old services that may occupy the terminal port..."
 systemctl disable --now shadowsocks-libev >/dev/null 2>&1 || true
 systemctl disable --now shadowsocks-libev-server@config.service >/dev/null 2>&1 || true
 systemctl stop "${XRAY_SERVICE}" >/dev/null 2>&1 || true
 
-echo "[6/10] Installing Xray-core..."
+echo "[6/11] Installing Xray-core..."
 install_xray
 
-echo "[7/10] Loading or generating VLESS/Reality credentials..."
+echo "[7/11] Loading or generating VLESS/Reality credentials..."
 load_or_generate_reality_credentials
 
-echo "[8/10] Writing Xray config and systemd service..."
+echo "[8/11] Checking Reality target..."
+check_reality_target
+
+echo "[9/11] Writing Xray config and systemd service..."
 write_xray_config
 write_xray_service
 
@@ -478,14 +621,14 @@ if ! systemctl is-active --quiet "${XRAY_SERVICE}"; then
   exit 1
 fi
 
-echo "[9/10] Generating Mihomo/Clash config and vless:// link..."
+echo "[10/11] Generating Mihomo/Clash config and vless:// link..."
 write_clash_config
 
 VLESS_URI="vless://${UUID}@${PUBLIC_IP}:${PORT}?encryption=none&security=reality&sni=${REALITY_SERVER_NAME}&fp=${CLIENT_FINGERPRINT}&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=tcp&flow=${FLOW}#${NODE_NAME}"
 printf '%s\n' "${VLESS_URI}" > "${VLESS_FILE}"
 chmod 644 "${VLESS_FILE}"
 
-echo "[10/10] Configuring optional HTTP subscription hosting..."
+echo "[11/11] Configuring optional HTTP subscription hosting..."
 SUBSCRIPTION_URL=""
 configure_subscription
 
@@ -507,6 +650,8 @@ Fingerprint: ${CLIENT_FINGERPRINT}
 Public key: ${PUBLIC_KEY}
 Short ID: ${SHORT_ID}
 Reality dest: ${REALITY_DEST}
+Reality target check: ${CHECK_REALITY_TARGET}
+Reality check log: ${REALITY_CHECK_LOG}
 
 VLESS link:
 ${VLESS_URI}
