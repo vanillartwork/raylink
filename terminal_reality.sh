@@ -119,7 +119,7 @@ valid_public_ipv4() {
   [ "${a}" -eq 192 ] && [ "${b}" -eq 168 ] && return 1
   [ "${a}" -eq 100 ] && [ "${b}" -ge 64 ] && [ "${b}" -le 127 ] && return 1
   [ "${a}" -eq 192 ] && [ "${b}" -eq 0 ] && [ "${c}" -eq 2 ] && return 1
-  [ "${a}" -eq 198 ] && [ "${b}" -eq 18 -o "${b}" -eq 19 ] && return 1
+  [ "${a}" -eq 198 ] && { [ "${b}" -eq 18 ] || [ "${b}" -eq 19 ]; } && return 1
   [ "${a}" -eq 198 ] && [ "${b}" -eq 51 ] && [ "${c}" -eq 100 ] && return 1
   [ "${a}" -eq 203 ] && [ "${b}" -eq 0 ] && [ "${c}" -eq 113 ] && return 1
   [ "${a}" -ge 224 ] && return 1
@@ -439,7 +439,7 @@ install_xray() {
 
   echo "Installing Xray-core from GitHub latest release..."
 
-  local arch xray_arch tmp_dir release_json download_url found_bin
+  local arch xray_arch tmp_dir release_json download_url found_bin prev_exit_trap
   arch="$(uname -m)"
   case "${arch}" in
     x86_64|amd64)
@@ -457,6 +457,7 @@ install_xray() {
       ;;
   esac
 
+  prev_exit_trap="$(trap -p EXIT || true)"
   tmp_dir="$(mktemp -d)"
   trap 'rm -rf "${tmp_dir:-}"' EXIT
   cd "${tmp_dir}"
@@ -495,11 +496,15 @@ install_xray() {
 
   cd /
   rm -rf "${tmp_dir}"
-  trap - EXIT
+  tmp_dir=""
+  if [ -n "${prev_exit_trap}" ]; then
+    eval "${prev_exit_trap}"
+  else
+    trap - EXIT
+  fi
 
   "${XRAY_BIN}" version || true
 }
-
 load_kv_file_var() {
   local file="$1"
   local key="$2"
@@ -509,22 +514,23 @@ load_kv_file_var() {
     return 0
   }
 
-  # Safe key=value parser. It never sources the file, and missing keys return empty.
-  # Values are written by write_kv_env_file as KEY='value'; this strips one optional
-  # surrounding quote pair without evaluating shell syntax.
-  awk -F= -v key="${key}" '
-    $1 == key {
-      value = substr($0, length(key) + 2)
-      print value
-      found = 1
-      exit
+  # Safe key=value parser. It never sources the file, preserves '=' inside values,
+  # and returns an empty string when the key does not exist.
+  awk -v key="${key}" '
+    {
+      eq = index($0, "=")
+      if (eq > 0 && substr($0, 1, eq - 1) == key) {
+        value = substr($0, eq + 1)
+        print value
+        found = 1
+        exit
+      }
     }
     END {
       if (!found) print ""
     }
   ' "${file}" 2>/dev/null | sed -e "s/^'//" -e "s/'$//" -e 's/^"//' -e 's/"$//' || printf '\n'
 }
-
 write_kv_env_file() {
   local file="$1"
   shift
@@ -595,6 +601,16 @@ ensure_xray_service_identity() {
       --shell /usr/sbin/nologin \
       --gid "${XRAY_SERVICE_GROUP}" \
       "${XRAY_SERVICE_USER}"
+  else
+    local actual_gid expected_gid
+    actual_gid="$(id -g "${XRAY_SERVICE_USER}" 2>/dev/null || echo "")"
+    expected_gid="$(getent group "${XRAY_SERVICE_GROUP}" | cut -d: -f3)"
+
+    if [ -n "${actual_gid}" ] && [ -n "${expected_gid}" ] && [ "${actual_gid}" != "${expected_gid}" ]; then
+      echo "Warning: user ${XRAY_SERVICE_USER} exists but primary gid (${actual_gid}) != ${XRAY_SERVICE_GROUP} gid (${expected_gid})."
+      echo "The xray config file may not be readable with chmod 640."
+      echo "Consider fixing the user/group manually, or set XRAY_SERVICE_USER / XRAY_SERVICE_GROUP explicitly."
+    fi
   fi
 }
 load_or_generate_reality_credentials() {
@@ -693,6 +709,60 @@ load_or_generate_reality_credentials() {
     CLIENT_FINGERPRINT "${CLIENT_FINGERPRINT}" \
     FLOW "${FLOW}"
 }
+validate_reality_inputs() {
+  if ! printf '%s' "${UUID}" | grep -Eq '^[0-9a-fA-F-]{36}$'; then
+    echo "Error: UUID format is invalid: ${UUID}"
+    exit 1
+  fi
+
+  if ! printf '%s' "${PRIVATE_KEY}" | grep -Eq '^[A-Za-z0-9_-]{40,60}$'; then
+    echo "Error: PRIVATE_KEY format is invalid or contains unsafe characters."
+    exit 1
+  fi
+
+  if ! printf '%s' "${PUBLIC_KEY}" | grep -Eq '^[A-Za-z0-9_-]{40,60}$'; then
+    echo "Error: PUBLIC_KEY format is invalid or contains unsafe characters."
+    exit 1
+  fi
+
+  if ! printf '%s' "${SHORT_ID}" | grep -Eq '^[A-Fa-f0-9]{0,16}$'; then
+    echo "Error: SHORT_ID must be hex and at most 16 characters, got: ${SHORT_ID}"
+    exit 1
+  fi
+
+  if ! printf '%s' "${REALITY_SERVER_NAME}" | grep -Eq '^[A-Za-z0-9._-]+$'; then
+    echo "Error: REALITY_SERVER_NAME contains invalid characters: ${REALITY_SERVER_NAME}"
+    exit 1
+  fi
+
+  if ! printf '%s' "${REALITY_DEST}" | grep -Eq '^[A-Za-z0-9._-]+:[0-9]{1,5}$'; then
+    echo "Error: REALITY_DEST must look like host:port, got: ${REALITY_DEST}"
+    exit 1
+  fi
+
+  local dest_port
+  dest_port="${REALITY_DEST##*:}"
+  if [ "${dest_port}" -lt 1 ] || [ "${dest_port}" -gt 65535 ]; then
+    echo "Error: REALITY_DEST port must be 1-65535, got: ${dest_port}"
+    exit 1
+  fi
+
+  if ! printf '%s' "${FLOW}" | grep -Eq '^[A-Za-z0-9._-]+$'; then
+    echo "Error: FLOW contains invalid characters: ${FLOW}"
+    exit 1
+  fi
+
+  if ! printf '%s' "${CLIENT_FINGERPRINT}" | grep -Eq '^[A-Za-z0-9._-]+$'; then
+    echo "Error: CLIENT_FINGERPRINT contains invalid characters: ${CLIENT_FINGERPRINT}"
+    exit 1
+  fi
+
+  if ! printf '%s' "${LISTEN_ADDRESS}" | grep -Eq '^[A-Za-z0-9:.%_-]+$'; then
+    echo "Error: LISTEN_ADDRESS contains invalid characters: ${LISTEN_ADDRESS}"
+    exit 1
+  fi
+}
+
 write_xray_service() {
   cat > /etc/systemd/system/${XRAY_SERVICE} <<SERVICE_EOF
 [Unit]
@@ -844,23 +914,19 @@ CLASH_EOF
 # When additional protocols (SS, Trojan) are added in the future, append their URIs to the
 # here-doc below before encoding. That is the canonical "universal subscription" format.
 write_uri_list_sub() {
-  # Accumulate one URI per line, then encode the whole block.
-  local raw_list
-  raw_list="$(printf '%s\n' "${VLESS_URI}")"
-
-  # The trailing newline after the base64 blob is required by some clients.
-  printf '%s\n' "${raw_list}" | base64_one_line > "${VLESS_URI_LIST_FILE}"
+  # One URI per line before Base64 encoding. The trailing newline after the Base64
+  # blob is required by some clients.
+  printf '%s\n' "${VLESS_URI}" | base64_one_line > "${VLESS_URI_LIST_FILE}"
   printf '\n' >> "${VLESS_URI_LIST_FILE}"
   chmod 644 "${VLESS_URI_LIST_FILE}"
 }
-
 disable_subscription_site_if_disabled() {
   if is_true "${ENABLE_SUBSCRIPTION}"; then
     return 0
   fi
 
   if [ -L "${NGINX_SITE_LINK}" ] || [ -f "${NGINX_SITE_LINK}" ]; then
-    echo "Disabling previous subscription nginx site because ENABLE_SUBSCRIPTION=false..."
+    echo "Disabling previous subscription nginx site because ENABLE_SUBSCRIPTION=false (nginx may keep running for other sites)..."
     rm -f "${NGINX_SITE_LINK}"
     if command -v nginx >/dev/null 2>&1; then
       nginx -t && systemctl reload nginx || true
@@ -1058,6 +1124,7 @@ echo "Preparing least-privilege systemd identity..."
 ensure_xray_service_identity
 
 echo "[9/11] Writing Xray config and systemd service..."
+validate_reality_inputs
 write_xray_config
 write_xray_service
 
