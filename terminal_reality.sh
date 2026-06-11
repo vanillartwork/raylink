@@ -5,9 +5,10 @@ set -euo pipefail
 # Features:
 # - VLESS Reality terminal node
 # - Optional HTTP subscription hosting through nginx
+#   /sub/{TOKEN}             → Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket)
 #   /sub/{TOKEN}/clash.yaml  → Mihomo / Clash Meta / FlClash / Clash Verge Rev
-#   /sub/{TOKEN}/vless       → v2rayN / v2rayNG / Hiddify / Shadowrocket (Base64 URI list)
-#   /sub/{TOKEN}/vless.txt   → same content, plain text for browser download / inspection
+#   /sub/{TOKEN}/vless       → legacy compatibility alias for URI-list
+#   /sub/{TOKEN}/vless.txt   → plain text, browser-friendly
 # - Persistent UUID / Reality keys / shortId / client fingerprint
 # - Public IPv4 auto detection with private-range filtering
 # - Reality target TLS 1.3 sanity check
@@ -439,7 +440,7 @@ install_xray() {
 
   echo "Installing Xray-core from GitHub latest release..."
 
-  local arch xray_arch tmp_dir release_json download_url found_bin prev_exit_trap
+  local arch xray_arch tmp_dir release_json download_url found_bin prev_exit_trap_action
   arch="$(uname -m)"
   case "${arch}" in
     x86_64|amd64)
@@ -457,7 +458,8 @@ install_xray() {
       ;;
   esac
 
-  prev_exit_trap="$(trap -p EXIT || true)"
+  # Preserve any existing EXIT trap. Do not use eval on the full trap -p output.
+  prev_exit_trap_action="$(trap -p EXIT | sed "s/^trap -- '//;s/' EXIT$//" || true)"
   tmp_dir="$(mktemp -d)"
   trap 'rm -rf "${tmp_dir:-}"' EXIT
   cd "${tmp_dir}"
@@ -497,8 +499,9 @@ install_xray() {
   cd /
   rm -rf "${tmp_dir}"
   tmp_dir=""
-  if [ -n "${prev_exit_trap}" ]; then
-    eval "${prev_exit_trap}"
+
+  if [ -n "${prev_exit_trap_action}" ]; then
+    trap "${prev_exit_trap_action}" EXIT
   else
     trap - EXIT
   fi
@@ -516,11 +519,21 @@ load_kv_file_var() {
 
   # Safe key=value parser. It never sources the file, preserves '=' inside values,
   # and returns an empty string when the key does not exist.
+  # Assumption: this env format is for token-like, generated or validated values;
+  # it is not intended for arbitrary strings containing raw quotes.
   awk -v key="${key}" '
     {
       eq = index($0, "=")
       if (eq > 0 && substr($0, 1, eq - 1) == key) {
         value = substr($0, eq + 1)
+
+        # Strip exactly one matching pair of outer quotes, if present.
+        if (length(value) >= 2 && substr(value, 1, 1) == "'" && substr(value, length(value), 1) == "'") {
+          value = substr(value, 2, length(value) - 2)
+        } else if (length(value) >= 2 && substr(value, 1, 1) == "\"" && substr(value, length(value), 1) == "\"") {
+          value = substr(value, 2, length(value) - 2)
+        }
+
         print value
         found = 1
         exit
@@ -529,8 +542,9 @@ load_kv_file_var() {
     END {
       if (!found) print ""
     }
-  ' "${file}" 2>/dev/null | sed -e "s/^'//" -e "s/'$//" -e 's/^"//' -e 's/"$//' || printf '\n'
+  ' "${file}" 2>/dev/null || printf '\n'
 }
+
 write_kv_env_file() {
   local file="$1"
   shift
@@ -582,14 +596,12 @@ validate_subscription_token() {
 }
 
 base64_one_line() {
-  # GNU coreutils supports -w 0; some other implementations do not.
-  if base64 --help 2>/dev/null | grep -q -- '-w'; then
+  if printf '' | base64 -w 0 >/dev/null 2>&1; then
     base64 -w 0
   else
     base64 | tr -d '\n'
   fi
 }
-
 ensure_xray_service_identity() {
   if ! getent group "${XRAY_SERVICE_GROUP}" >/dev/null 2>&1; then
     groupadd --system "${XRAY_SERVICE_GROUP}"
@@ -709,7 +721,26 @@ load_or_generate_reality_credentials() {
     CLIENT_FINGERPRINT "${CLIENT_FINGERPRINT}" \
     FLOW "${FLOW}"
 }
+
+validate_port_number() {
+  local name="$1"
+  local value="$2"
+
+  if ! printf '%s' "${value}" | grep -Eq '^[0-9]+$'; then
+    echo "Error: ${name} must be a number between 1 and 65535, got: ${value}"
+    exit 1
+  fi
+
+  if [ "${value}" -lt 1 ] || [ "${value}" -gt 65535 ]; then
+    echo "Error: ${name} must be a number between 1 and 65535, got: ${value}"
+    exit 1
+  fi
+}
+
+
 validate_reality_inputs() {
+  validate_port_number PORT "${PORT}"
+
   if ! printf '%s' "${UUID}" | grep -Eq '^[0-9a-fA-F-]{36}$'; then
     echo "Error: UUID format is invalid: ${UUID}"
     exit 1
@@ -725,6 +756,8 @@ validate_reality_inputs() {
     exit 1
   fi
 
+  # SHORT_ID can technically be empty in Xray Reality, but this script generates
+  # a 16-hex shortId by default for clearer client configuration.
   if ! printf '%s' "${SHORT_ID}" | grep -Eq '^[A-Fa-f0-9]{0,16}$'; then
     echo "Error: SHORT_ID must be hex and at most 16 characters, got: ${SHORT_ID}"
     exit 1
@@ -880,19 +913,19 @@ CLASH_HEADER_EOF
 proxies:
   - name: "${NODE_NAME}"
     type: vless
-    server: ${PUBLIC_IP}
+    server: "${PUBLIC_IP}"
     port: ${PORT}
-    uuid: ${UUID}
+    uuid: "${UUID}"
     network: tcp
     udp: true
     tfo: ${TFO_YAML_VALUE}
     tls: true
-    servername: ${REALITY_SERVER_NAME}
-    flow: ${FLOW}
-    client-fingerprint: ${CLIENT_FINGERPRINT}
+    servername: "${REALITY_SERVER_NAME}"
+    flow: "${FLOW}"
+    client-fingerprint: "${CLIENT_FINGERPRINT}"
     reality-opts:
-      public-key: ${PUBLIC_KEY}
-      short-id: ${SHORT_ID}
+      public-key: "${PUBLIC_KEY}"
+      short-id: "${SHORT_ID}"
     skip-cert-verify: false
 
 proxy-groups:
@@ -935,6 +968,7 @@ disable_subscription_site_if_disabled() {
 }
 
 configure_subscription() {
+  SUBSCRIPTION_URL_UNIVERSAL=""
   SUBSCRIPTION_URL_CLASH=""
   SUBSCRIPTION_URL_VLESS=""
 
@@ -942,6 +976,20 @@ configure_subscription() {
     return 0
   fi
 
+  local old_token old_sub_port old_dir
+  old_token=""
+  old_sub_port=""
+  if [ -f "${SUB_ENV_FILE}" ]; then
+    old_token="$(load_kv_file_var "${SUB_ENV_FILE}" SUB_TOKEN || true)"
+    old_sub_port="$(load_kv_file_var "${SUB_ENV_FILE}" SUB_PORT || true)"
+  fi
+
+  if [ -z "${SUB_TOKEN}" ] && ! is_true "${RESET_SUB_TOKEN}"; then
+    [ -n "${old_token}" ] && SUB_TOKEN="${old_token}"
+    [ -n "${old_sub_port}" ] && SUB_PORT="${old_sub_port}"
+  fi
+
+  validate_port_number SUB_PORT "${SUB_PORT}"
   if [ "${SUB_PORT}" = "${PORT}" ]; then
     echo "SUB_PORT must be different from PORT. Current value: ${SUB_PORT}"
     exit 1
@@ -949,27 +997,16 @@ configure_subscription() {
 
   apt install -y nginx
 
-  local old_token old_dir
-  old_token=""
-  if [ -f "${SUB_ENV_FILE}" ]; then
-    old_token="$(load_kv_file_var "${SUB_ENV_FILE}" SUB_TOKEN || true)"
-  fi
-
-  if [ -z "${SUB_TOKEN}" ] && ! is_true "${RESET_SUB_TOKEN}" && [ -f "${SUB_ENV_FILE}" ]; then
-    local loaded_sub_token loaded_sub_port
-    loaded_sub_token="$(load_kv_file_var "${SUB_ENV_FILE}" SUB_TOKEN || true)"
-    loaded_sub_port="$(load_kv_file_var "${SUB_ENV_FILE}" SUB_PORT || true)"
-    [ -n "${loaded_sub_token}" ] && SUB_TOKEN="${loaded_sub_token}"
-    [ -n "${loaded_sub_port}" ] && SUB_PORT="${loaded_sub_port}"
-  fi
-
   SUB_TOKEN="${SUB_TOKEN:-$(openssl rand -hex 24)}"
   if ! validate_subscription_token "${SUB_TOKEN}"; then
     echo "Invalid SUB_TOKEN. Use 24-128 characters: A-Z, a-z, 0-9, underscore, hyphen."
     exit 1
   fi
+
   SUB_DIR="${SUB_ROOT}/sub/${SUB_TOKEN}"
+  SUBSCRIPTION_URL_UNIVERSAL="http://${PUBLIC_IP}:${SUB_PORT}/sub/${SUB_TOKEN}"
   SUBSCRIPTION_URL_CLASH="http://${PUBLIC_IP}:${SUB_PORT}/sub/${SUB_TOKEN}/clash.yaml"
+  # Legacy compatibility URL; kept in subscription.env but not highlighted in output.
   SUBSCRIPTION_URL_VLESS="http://${PUBLIC_IP}:${SUB_PORT}/sub/${SUB_TOKEN}/vless"
 
   # Clean up orphaned token directory from a previous run if the token changed.
@@ -988,11 +1025,12 @@ configure_subscription() {
   cp "${CLASH_FILE}" "${SUB_DIR}/clash.yaml"
   chmod 644 "${SUB_DIR}/clash.yaml"
 
-  # vless — Base64 URI list for v2rayN / v2rayNG / Hiddify / Shadowrocket (binary-safe, no extension)
+  # vless — Base64 URI list for v2rayN / v2rayNG / Hiddify / Shadowrocket.
+  # This file is also exposed as /sub/TOKEN through nginx rewrite/try_files.
   cp "${VLESS_URI_LIST_FILE}" "${SUB_DIR}/vless"
   chmod 644 "${SUB_DIR}/vless"
 
-  # vless.txt — identical content, plain .txt extension for browser download / manual inspection
+  # vless.txt — legacy/browser-friendly path; kept for compatibility, not highlighted in output.
   cp "${VLESS_URI_LIST_FILE}" "${SUB_DIR}/vless.txt"
   chmod 644 "${SUB_DIR}/vless.txt"
 
@@ -1001,10 +1039,13 @@ configure_subscription() {
   write_kv_env_file "${SUB_ENV_FILE}" \
     SUB_TOKEN "${SUB_TOKEN}" \
     SUB_PORT "${SUB_PORT}" \
+    SUBSCRIPTION_URL_UNIVERSAL "${SUBSCRIPTION_URL_UNIVERSAL}" \
     SUBSCRIPTION_URL_CLASH "${SUBSCRIPTION_URL_CLASH}" \
     SUBSCRIPTION_URL_VLESS "${SUBSCRIPTION_URL_VLESS}"
 
   cat > "${NGINX_SITE}" <<NGINX_EOF
+# This managed site file is overwritten on each run, so the rate-limit zone
+# is defined only once inside this nginx include file.
 limit_req_zone \$binary_remote_addr zone=cloud_xray_sub_limit:10m rate=${SUB_RATE_LIMIT};
 
 server {
@@ -1013,6 +1054,17 @@ server {
 
     root ${SUB_ROOT};
     autoindex off;
+
+    # Universal URI-list subscription:
+    # /sub/{TOKEN} -> /sub/{TOKEN}/vless
+    location ~ ^/sub/[A-Za-z0-9_-]{24,128}$ {
+        limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
+        try_files \$uri/vless =404;
+        default_type application/octet-stream;
+        add_header Content-Disposition 'attachment; filename="sub.txt"' always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Cache-Control "no-store" always;
+    }
 
     # Clash YAML subscription
     location ~* /clash\.yaml$ {
@@ -1023,7 +1075,7 @@ server {
         add_header Cache-Control "no-store" always;
     }
 
-    # VLESS URI-list subscription (Base64) for client auto-import.
+    # Legacy URI-list endpoint kept for compatibility.
     location ~* /vless$ {
         limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
         try_files \$uri =404;
@@ -1155,6 +1207,7 @@ chmod 644 "${VLESS_FILE}"
 write_uri_list_sub
 
 echo "[11/11] Configuring optional HTTP subscription hosting..."
+SUBSCRIPTION_URL_UNIVERSAL=""
 SUBSCRIPTION_URL_CLASH=""
 SUBSCRIPTION_URL_VLESS=""
 disable_subscription_site_if_disabled
@@ -1207,12 +1260,10 @@ if is_true "${ENABLE_SUBSCRIPTION}"; then
   cat >> "${INFO_FILE}" <<INFO_SUB_EOF
 
 Subscription URLs:
+  Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket):
+    ${SUBSCRIPTION_URL_UNIVERSAL}
   Mihomo / Clash Meta / FlClash / Clash Verge Rev:
     ${SUBSCRIPTION_URL_CLASH}
-  v2rayN / v2rayNG / Hiddify / Shadowrocket (URI-list):
-    ${SUBSCRIPTION_URL_VLESS}
-  v2rayN / v2rayNG / Hiddify (plain text, browser-friendly):
-    ${SUBSCRIPTION_URL_VLESS}.txt
 
 Subscription details:
   Port:        ${SUB_PORT}
@@ -1276,10 +1327,8 @@ echo "${VLESS_URI}"
 if is_true "${ENABLE_SUBSCRIPTION}"; then
   echo ""
   echo "Subscription URLs:"
+  echo "  Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket):"
+  echo "    ${SUBSCRIPTION_URL_UNIVERSAL}"
   echo "  Mihomo / Clash Meta / FlClash / Clash Verge Rev:"
   echo "    ${SUBSCRIPTION_URL_CLASH}"
-  echo "  v2rayN / v2rayNG / Hiddify / Shadowrocket (URI-list):"
-  echo "    ${SUBSCRIPTION_URL_VLESS}"
-  echo "  Browser / manual download:"
-  echo "    ${SUBSCRIPTION_URL_VLESS}.txt"
 fi
