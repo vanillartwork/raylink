@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generic Xray VLESS Reality terminal node (hardened) with optional HTTP multi-format subscription hosting.
+# Generic Xray VLESS Reality terminal node (hardened) with HTTP multi-format subscription hosting enabled by default.
 # Features:
 # - VLESS Reality terminal node
-# - Optional HTTP subscription hosting through nginx
+# - HTTP subscription hosting through nginx (enabled by default; set ENABLE_SUBSCRIPTION=false to disable)
 #   /sub/{TOKEN}             → Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket)
 #   /sub/{TOKEN}/clash.yaml  → Mihomo / Clash Meta / FlClash / Clash Verge Rev
 #   /sub/{TOKEN}/vless       → legacy compatibility alias for URI-list
@@ -68,8 +68,9 @@ CHECK_REALITY_TARGET="${CHECK_REALITY_TARGET:-true}"
 REALITY_CHECK_STRICT="${REALITY_CHECK_STRICT:-false}"
 REALITY_CHECK_LOG="${REALITY_CHECK_LOG:-/tmp/reality_target_check.log}"
 
-# Optional Clash/Mihomo subscription hosting. Disabled by default.
-ENABLE_SUBSCRIPTION="${ENABLE_SUBSCRIPTION:-false}"
+# Clash/Mihomo subscription hosting. Enabled by default.
+# Set ENABLE_SUBSCRIPTION=false to disable and remove this script's managed nginx site link.
+ENABLE_SUBSCRIPTION="${ENABLE_SUBSCRIPTION:-true}"
 SUB_PORT="${SUB_PORT:-8080}"
 SUB_TOKEN="${SUB_TOKEN:-}"
 SUB_ROOT="${INSTALL_DIR}/public"
@@ -142,6 +143,11 @@ install_required_packages() {
   command -v getent >/dev/null 2>&1 || packages+=(passwd)
   command -v useradd >/dev/null 2>&1 || packages+=(passwd)
   command -v groupadd >/dev/null 2>&1 || packages+=(passwd)
+
+  # nginx is needed only when HTTP subscription hosting is enabled.
+  if is_true "${ENABLE_SUBSCRIPTION}"; then
+    command -v nginx >/dev/null 2>&1 || packages+=(nginx)
+  fi
 
   apt update
   apt install -y "${packages[@]}"
@@ -995,7 +1001,10 @@ configure_subscription() {
     exit 1
   fi
 
-  apt install -y nginx
+  if ! command -v nginx >/dev/null 2>&1; then
+    echo "Error: nginx is not installed. Try rerunning the script, or install nginx manually."
+    exit 1
+  fi
 
   SUB_TOKEN="${SUB_TOKEN:-$(openssl rand -hex 24)}"
   if ! validate_subscription_token "${SUB_TOKEN}"; then
@@ -1114,6 +1123,11 @@ if [ "$(id -u)" -ne 0 ]; then
   echo "Please run this script as root, for example:"
   echo "sudo env PORT=${PORT} NODE_NAME=${NODE_NAME} bash terminal_reality.sh"
   exit 1
+fi
+
+validate_port_number PORT "${PORT}"
+if is_true "${ENABLE_SUBSCRIPTION}"; then
+  validate_port_number SUB_PORT "${SUB_PORT}"
 fi
 
 if is_true "${ENABLE_SUBSCRIPTION}" && [ "${SUB_PORT}" = "${PORT}" ]; then
@@ -1244,7 +1258,7 @@ Reality dest: ${REALITY_DEST}
 Reality target check: ${CHECK_REALITY_TARGET}
 Reality check log: ${REALITY_CHECK_LOG}
 
-VLESS link:
+VLESS link (direct import / troubleshooting):
 ${VLESS_URI}
 
 Files:
@@ -1281,7 +1295,7 @@ else
 
 Subscription:
   Enabled: false
-  To enable: ENABLE_SUBSCRIPTION=true bash terminal_reality.sh
+  To re-enable: ENABLE_SUBSCRIPTION=true bash terminal_reality.sh
 INFO_SUB_EOF
 fi
 
@@ -1294,7 +1308,8 @@ echo ""
 echo "=========================================="
 echo "Setup complete"
 echo "=========================================="
-cat "${INFO_FILE}"
+echo "Full server information saved to: ${INFO_FILE}"
+echo "VLESS direct import link saved to: ${VLESS_FILE}"
 
 echo ""
 echo "Xray status:"
@@ -1308,7 +1323,11 @@ fi
 
 echo ""
 echo "Listening ports:"
-ss -tulnp | grep -E ":(${PORT}|${SUB_PORT})" || true
+if is_true "${ENABLE_SUBSCRIPTION}"; then
+  ss -tulnp | grep -E ":(${PORT}|${SUB_PORT})([[:space:]]|$)" || true
+else
+  ss -tulnp | grep -E ":${PORT}([[:space:]]|$)" || true
+fi
 
 echo ""
 echo "Important: allow TCP ${PORT} in your cloud firewall/security group."
@@ -1320,10 +1339,8 @@ if is_true "${ENABLE_SUBSCRIPTION}"; then
   echo "Do not publish the subscription URLs publicly; they contain your client config."
 fi
 
-echo ""
-echo "VLESS Reality link (direct import):"
-echo "${VLESS_URI}"
-
+# Direct import link is saved to ${VLESS_FILE} but is not printed by default.
+# Prefer subscription URLs for regular use.
 if is_true "${ENABLE_SUBSCRIPTION}"; then
   echo ""
   echo "Subscription URLs:"
