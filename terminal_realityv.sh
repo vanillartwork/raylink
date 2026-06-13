@@ -752,8 +752,6 @@ validate_port_number() {
 
 
 validate_reality_inputs() {
-  validate_port_number PORT "${PORT}"
-
   if ! printf '%s' "${UUID}" | grep -Eq '^[0-9a-fA-F-]{36}$'; then
     echo "Error: UUID format is invalid: ${UUID}"
     exit 1
@@ -1073,7 +1071,7 @@ server {
 
     # Universal URI-list subscription:
     # /sub/{TOKEN} -> /sub/{TOKEN}/vless
-    location ~ ^/sub/[A-Za-z0-9_-]{24,128}$ {
+    location ~ "^/sub/[A-Za-z0-9_-]{24,128}$" {
         limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
         try_files \$uri/vless =404;
         default_type application/octet-stream;
@@ -1346,8 +1344,9 @@ if is_true "${ENABLE_SUBSCRIPTION}"; then
   echo "Do not publish the subscription URLs publicly; they contain your client config."
 fi
 
-# Direct import link is saved to ${VLESS_FILE} but is not printed by default.
-# Prefer subscription URLs for regular use.
+# Direct import link is saved in both ${INFO_FILE} and ${VLESS_FILE},
+# but is not printed directly to the terminal by default.
+# Subscription URLs are preferred for regular use.
 if is_true "${ENABLE_SUBSCRIPTION}"; then
   echo ""
   echo "Subscription URLs:"
