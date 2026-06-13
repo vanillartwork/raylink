@@ -523,21 +523,28 @@ load_kv_file_var() {
     return 0
   }
 
-  # Safe key=value parser. It never sources the file, preserves '=' inside values,
-  # and returns an empty string when the key does not exist.
-  # Assumption: this env format is for token-like, generated or validated values;
-  # it is not intended for arbitrary strings containing raw quotes.
+  # Safe key=value parser. It never sources the file and preserves every
+  # character after the first '='. Older buggy versions could repeatedly wrap
+  # saved values in quotes on each rerun, so matching outer quote pairs are
+  # removed repeatedly to repair those files automatically.
   awk -v key="${key}" '
+    BEGIN {
+      sq = sprintf("%c", 39)
+      dq = sprintf("%c", 34)
+    }
     {
       eq = index($0, "=")
       if (eq > 0 && substr($0, 1, eq - 1) == key) {
         value = substr($0, eq + 1)
 
-        # Strip exactly one matching pair of outer quotes, if present.
-        if (length(value) >= 2 && substr(value, 1, 1) == "'" && substr(value, length(value), 1) == "'") {
-          value = substr(value, 2, length(value) - 2)
-        } else if (length(value) >= 2 && substr(value, 1, 1) == "\"" && substr(value, length(value), 1) == "\"") {
-          value = substr(value, 2, length(value) - 2)
+        while (length(value) >= 2) {
+          first = substr(value, 1, 1)
+          last = substr(value, length(value), 1)
+          if ((first == sq && last == sq) || (first == dq && last == dq)) {
+            value = substr(value, 2, length(value) - 2)
+          } else {
+            break
+          }
         }
 
         print value
@@ -1066,7 +1073,7 @@ server {
 
     # Universal URI-list subscription:
     # /sub/{TOKEN} -> /sub/{TOKEN}/vless
-    location ~ ^/sub/[A-Za-z0-9_-]{24,128}$ {
+    location ~ "^/sub/[A-Za-z0-9_-]{24,128}$" {
         limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
         try_files \$uri/vless =404;
         default_type application/octet-stream;
