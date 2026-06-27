@@ -1,1399 +1,853 @@
-# aws-ss-clash
+# RayLink
 
-[English](#english) | [中文说明](#中文说明)
+[English](#english) | [中文](#中文)
 
 ---
 
 # English
 
-One-click AWS EC2 Shadowsocks setup script with auto-generated Clash configuration and URL link.
+RayLink is a small one-script deployment helper for a personal Xray VLESS Reality terminal node.
 
-This project deploys a Shadowsocks server on an AWS EC2 Ubuntu instance and automatically generates both a Clash-compatible YAML configuration file and a Shadowsocks URL for importing.
+It installs Xray on a Linux VPS, writes a systemd service, generates persistent VLESS Reality credentials, creates client subscriptions, and runs an end-to-end Reality self-test before publishing the generated client configuration.
 
-## Default Settings
+Use it only for legal and compliant network access. Cloud servers and data transfer may incur charges.
 
-- Server: AWS EC2
-- OS: Ubuntu 24.04
-- Protocol: Shadowsocks
-- Port: 8388
-- Cipher: aes-256-gcm
-- Client: Clash / Clash Verge / Clash for Windows / Clash Meta
-- Docker image: `shadowsocks/shadowsocks-libev`
+## What it deploys
 
-> Use this project only for legal and compliant network access. AWS EC2 and data transfer may incur charges.
+Default deployment:
 
----
+| Item | Default |
+|---|---|
+| Protocol | VLESS Reality |
+| Transport | TCP |
+| Server port | `443` |
+| Subscription port | `8080` |
+| Xray service user | `xray:xray` |
+| Install directory | `/opt/cloud-xray-terminal` |
+| Xray config | `/usr/local/etc/xray/config.json` |
+| Client config | Mihomo/Clash YAML and base64 URI-list |
+| Reality target | Automatically self-tested, default starts with `www.cloudflare.com:443` |
+| TCP Fast Open | Disabled by default |
 
-## 1. Features
-
-The script automatically performs the following tasks:
-
-1. Updates the Ubuntu package list.
-2. Installs Docker.
-3. Starts and enables the Docker service.
-4. Generates a random Shadowsocks password.
-5. Removes the old Shadowsocks container if it exists.
-6. Creates a new Shadowsocks Docker container.
-7. Generates a Clash configuration file automatically.
-8. Prints the server information and Clash configuration.
-
-Final traffic path:
+Traffic path:
 
 ```text
-Clash → EC2 Public IP:8388 → Docker Container:8388 → Shadowsocks Server
+Client
+→ VPS public IP:443
+→ Xray VLESS Reality inbound
+→ VPS direct outbound
+→ Internet
 ```
 
----
+## Requirements
 
-## 2. AWS EC2 Preparation
+Recommended server environment:
 
-### 2.1 Log in to AWS
+- Ubuntu 22.04 / 24.04 / 26.04 or a Debian-like system with `apt` and `systemd`
+- Root access through `sudo`
+- A public IPv4 address
+- Cloud firewall/security group access
 
-Go to the AWS Management Console.
+This script is designed for normal VPS providers, AWS EC2, Google Cloud, Oracle Cloud, Azure, and similar Linux servers. It is not designed for OpenWrt directly.
 
-In the search bar, search for:
+## Firewall rules
 
-```text
-EC2
-```
+Open these inbound TCP ports:
 
-Open the EC2 service, then click:
+| Port | Protocol | Purpose | Recommended source |
+|---:|---|---|---|
+| `22` | TCP | SSH | Your own IP |
+| `443` | TCP | VLESS Reality node | `0.0.0.0/0` |
+| `8080` | TCP | HTTP subscription | Your own IP if possible |
 
-```text
-Launch instance
-```
+Notes:
 
----
+- Reality over TCP does not need UDP `443`.
+- The subscription URL contains your full client configuration. Do not publish it.
+- Long-term, restrict TCP `8080` to your own IP or disable subscription hosting after importing the config.
 
-### 2.2 Choose the Operating System
+## Quick install
 
-Recommended AMI:
-
-```text
-Ubuntu Server 24.04 LTS
-```
-
-Do not choose Windows for this setup. Windows Server costs more and is not suitable for this lightweight proxy service.
-
----
-
-### 2.3 Choose the Instance Type
-
-For personal use, the recommended instance type is:
-
-```text
-t3.micro
-```
-
-If you want a cheaper ARM-based instance, you may choose:
-
-```text
-t4g.micro
-```
-
-### 2.4 Create a Key Pair
-
-In the **Key pair** section, select:
-
-```text
-Create new key pair
-```
-
-Example name:
-
-```text
-aws-clash-key
-```
-
-Key pair type:
-
-```text
-RSA
-```
-
-Private key file format:
-
-```text
-.pem
-```
-
-Then download the key file.
-
-You will get a file similar to:
-
-```text
-aws-clash-key.pem
-```
-
-This file is very important. You need it later to SSH into the EC2 instance.
-
----
-
-### 2.5 Configure Security Group
-
-In the EC2 Security Group inbound rules, add:
-
-| Type | Protocol | Port | Source |
-|---|---|---:|---|
-| SSH | TCP | 22 | Your IP |
-| Custom TCP | TCP | 8388 | 0.0.0.0/0 |
-| Custom UDP | UDP | 8388 | 0.0.0.0/0 |
-
-Explanation:
-
-- Port `22` is used for SSH login. It is recommended to allow only your own IP.
-- Port `8388` is used by Clash to connect to the Shadowsocks server.
-- If you use another port, such as `443`, change the Security Group rules accordingly.
-
----
-
-### 2.6 Launch the Instance
-
-After checking the AMI, instance type, key pair, storage, and security group settings, click:
-
-```text
-Launch instance
-```
-
-Wait until the instance state becomes:
-
-```text
-Running
-```
-
-Then copy the instance's public IP address:
-
-```text
-Public IPv4 address
-```
-
-This IP address will be used for SSH login and Clash configuration.
-
----
-
-## 3. SSH into the EC2 Instance
-
-This README uses **Windows CMD** by default.
-
-Open CMD and go to the folder where your `.pem` key is saved.
-
-For example, if your key is in the Downloads folder:
-
-```cmd
-cd %USERPROFILE%\Downloads
-```
-
-Use the following command format:
-
-```cmd
-ssh -i [KEY_FILE].pem ubuntu@[EC2_PUBLIC_IP]
-```
-
-Example:
-
-```cmd
-ssh -i aws-clash-key.pem ubuntu@13.232.43.141
-```
-
-For Ubuntu AMI, the default username is usually:
-
-```text
-ubuntu
-```
-
----
-
-## 4. One-line Installation
-
-Run this command on the EC2 instance:
+SSH into the server, then run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
 ```
 
----
-
-## 5. Custom Port
-
-The default port is:
+After installation, the script prints two subscription URLs:
 
 ```text
-8388
+Universal URI-list:
+http://SERVER_IP:8080/sub/TOKEN
+
+Mihomo / Clash Meta:
+http://SERVER_IP:8080/sub/TOKEN/clash.yaml
 ```
 
-To use another port, for example `443`, run:
+Use the `clash.yaml` URL for Mihomo/Clash-based clients. Use the universal URI-list URL for clients such as v2rayN, v2rayNG, Hiddify, and Shadowrocket when supported.
+
+## Client import
+
+### Mihomo / Clash Meta / FlClash / Clash Verge Rev
+
+Import this URL:
+
+```text
+http://SERVER_IP:8080/sub/TOKEN/clash.yaml
+```
+
+Then select:
+
+```text
+GLOBAL → Terminal-Reality
+```
+
+Enable system proxy or TUN mode in your client.
+
+### Shadowrocket / v2rayN / v2rayNG / Hiddify
+
+Import the universal URI-list URL:
+
+```text
+http://SERVER_IP:8080/sub/TOKEN
+```
+
+You can also copy the direct VLESS link from the server:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sudo PORT=443 bash
+sudo cat /opt/cloud-xray-terminal/vless-uri.txt
 ```
 
-If you use a custom port, remember to update the AWS Security Group:
+The direct link is useful for troubleshooting, but the subscription URLs are easier to update.
 
-| Type | Protocol | Port | Source |
-|---|---|---:|---|
-| Custom TCP | TCP | 443 | 0.0.0.0/0 |
-| Custom UDP | UDP | 443 | 0.0.0.0/0 |
+## Generated files
 
----
-
-## 6. Custom Cipher Method
-
-The default cipher is:
+After installation, files are saved here:
 
 ```text
-aes-256-gcm
+/opt/cloud-xray-terminal/server-info.txt
+/opt/cloud-xray-terminal/clash.yaml
+/opt/cloud-xray-terminal/vless-uri.txt
+/opt/cloud-xray-terminal/vless-uri-list
+/opt/cloud-xray-terminal/reality.env
+/opt/cloud-xray-terminal/subscription.env
+/usr/local/etc/xray/config.json
 ```
 
-To specify another method, for example `aes-128-gcm`, run:
+Useful commands:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sudo METHOD=aes-128-gcm bash
+sudo cat /opt/cloud-xray-terminal/server-info.txt
+sudo cat /opt/cloud-xray-terminal/subscription.env
+sudo cat /opt/cloud-xray-terminal/vless-uri.txt
+sudo cat /opt/cloud-xray-terminal/clash.yaml
 ```
 
-Recommended method:
+## Re-running the script
 
-```text
-aes-256-gcm
-```
+Re-running the script is safe. By default it reuses:
 
----
+- UUID
+- Reality private/public key pair
+- shortId
+- Reality target
+- client fingerprint
+- subscription token
 
-## 7. Generated Files
+This keeps existing client subscriptions stable unless you explicitly reset them.
 
-After installation, the script creates:
-
-```text
-/opt/aws-clash-ss/server-info.txt
-/opt/aws-clash-ss/clash.yaml
-```
-
-View server information:
+To regenerate Reality credentials:
 
 ```bash
-sudo cat /opt/aws-clash-ss/server-info.txt
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env RESET_REALITY_CREDENTIALS=true bash
 ```
 
-View Clash configuration:
+To regenerate only the subscription token:
 
 ```bash
-sudo cat /opt/aws-clash-ss/clash.yaml
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env RESET_SUB_TOKEN=true bash
 ```
 
----
+## Reality target self-test and fallback
 
-## 8. Generated Client Configuration
+Reality depends on a suitable TLS target. A target may pass a simple TLS check but still fail real Reality handshakes.
 
-After installation, the script generates two types of client configuration:
+The script performs two checks:
 
-1. A Shadowsocks `URL` link for any clients.
-2. A Clash YAML configuration file for Clash-compatible clients.
+1. A basic TLS 1.3 probe against the selected target.
+2. An end-to-end local Reality self-test by starting a temporary local Xray SOCKS client and connecting back to the local Reality inbound.
 
----
+If the self-test fails and fallback is enabled, the script tries the configured candidate list and saves the first working target.
 
-### 8.1 Shadowsocks URL
-
-The script generates a standard Shadowsocks URL.
-
-This is the easiest option for mobile clients such as:
-
-- Android: Surfboard
-- iOS: Shadowrocket
-
-The URL is printed at the end of the installation output:
+Default candidate format:
 
 ```text
-URL link:
-ss://...
+dest|serverName|clientFingerprint
 ```
 
-It is also saved on the EC2 instance:
+Default candidate list:
 
 ```text
-/opt/aws-clash-ss/ss-uri.txt
+www.cloudflare.com:443|www.cloudflare.com|chrome
+www.apple.com:443|www.apple.com|safari
+addons.mozilla.org:443|addons.mozilla.org|firefox
+www.speedtest.net:443|www.speedtest.net|chrome
+www.microsoft.com:443|www.microsoft.com|chrome
 ```
 
-View the URL on the EC2 instance:
+Manually choose a target:
 
 ```bash
-sudo cat /opt/aws-clash-ss/ss-uri.txt
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
+REALITY_DEST=www.cloudflare.com:443 \
+REALITY_SERVER_NAME=www.cloudflare.com \
+CLIENT_FINGERPRINT=chrome \
+bash
 ```
 
-Download it to your local Windows Downloads folder using CMD:
-
-```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[EC2_PUBLIC_IP]:/opt/aws-clash-ss/ss-uri.txt %USERPROFILE%\Downloads\ss-uri.txt
-```
-
-Example:
-
-```cmd
-scp -i %USERPROFILE%\Downloads\aws-clash-key.pem ubuntu@13.232.43.141:/opt/aws-clash-ss/ss-uri.txt %USERPROFILE%\Downloads\ss-uri.txt
-```
-
-If your mobile client supports importing from clipboard, you can simply copy the `ss://` URL and paste it into the app.
-
-If your mobile client does not support URL import, add a Shadowsocks server manually using the following fields:
-
-```text
-Type: Shadowsocks
-Server: YOUR_EC2_PUBLIC_IP
-Port: 8388
-Method / Cipher: aes-256-gcm
-Password: YOUR_GENERATED_PASSWORD
-UDP: Enable
-```
-
----
-
-### 8.2 Clash YAML Configuration
-
-The script also generates a Clash-compatible YAML configuration file.
-
-The file is saved on the EC2 instance:
-
-```text
-/opt/aws-clash-ss/clash.yaml
-```
-
-View the Clash configuration:
+Custom candidate list:
 
 ```bash
-sudo cat /opt/aws-clash-ss/clash.yaml
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
+REALITY_TARGET_CANDIDATES='www.cloudflare.com:443|www.cloudflare.com|chrome www.apple.com:443|www.apple.com|safari' \
+bash
 ```
 
-The generated Clash configuration looks like this:
-
-```yaml
-mixed-port: 7890
-allow-lan: false
-mode: global
-log-level: info
-
-proxies:
-  - name: "AWS-SS"
-    type: ss
-    server: YOUR_EC2_PUBLIC_IP
-    port: 8388
-    cipher: aes-256-gcm
-    password: "YOUR_GENERATED_PASSWORD"
-    udp: true
-
-proxy-groups:
-  - name: "GLOBAL"
-    type: select
-    proxies:
-      - AWS-SS
-      - DIRECT
-
-rules:
-  - MATCH,GLOBAL
-```
-
-Import the generated `clash.yaml` into Clash, then select:
-
-```text
-GLOBAL → AWS-SS
-```
-
-Enable system proxy or TUN mode in Clash.
-
----
-
-## 9. Download Clash Config to Local Computer
-
-The generated Clash config is saved on the EC2 instance:
-
-```text
-/opt/aws-clash-ss/clash.yaml
-```
-
-On your local Windows CMD, download it to the Downloads folder using `scp`:
-
-```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[EC2_PUBLIC_IP]:/opt/aws-clash-ss/clash.yaml %USERPROFILE%\Downloads\aws-clash.yaml
-```
-
-Example:
-
-```cmd
-scp -i %USERPROFILE%\Downloads\aws-clash-key.pem ubuntu@13.232.43.141:/opt/aws-clash-ss/clash.yaml %USERPROFILE%\Downloads\aws-clash.yaml
-```
-
-If you are already inside the Downloads folder, you can also use:
-
-```cmd
-scp -i [KEY_FILE].pem ubuntu@[EC2_PUBLIC_IP]:/opt/aws-clash-ss/clash.yaml aws-clash.yaml
-```
-
-Example:
-
-```cmd
-scp -i aws-clash-key.pem ubuntu@13.232.43.141:/opt/aws-clash-ss/clash.yaml aws-clash.yaml
-```
-
-Then import this file into Clash:
-
-```text
-Downloads\aws-clash.yaml
-```
-
----
-
-## 10. Check Docker Status
-
-Check whether the Shadowsocks container is running:
+Disable self-test only when you know what you are doing:
 
 ```bash
-sudo docker ps
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env REALITY_SELF_TEST=false bash
 ```
 
-Expected output should include something like:
+## Common options
 
-```text
-0.0.0.0:8388->8388/tcp
-0.0.0.0:8388->8388/udp
-```
-
-Check Shadowsocks logs:
+Use environment variables before `bash`:
 
 ```bash
-sudo docker logs ss-server
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env KEY=value bash
 ```
 
-Expected logs should include:
+| Variable | Default | Meaning |
+|---|---|---|
+| `PORT` | `443` | Xray Reality inbound port |
+| `SUB_PORT` | `8080` | HTTP subscription port |
+| `NODE_NAME` | `Terminal-Reality` | Client node name |
+| `ENABLE_SUBSCRIPTION` | `true` | Enable nginx subscription hosting |
+| `ENABLE_TFO` | `false` | Enable TCP Fast Open in Xray and generated client config |
+| `DNS_PROFILE` | `mixed` | DNS profile for generated Mihomo/Clash YAML |
+| `REALITY_DEST` | auto/default | Reality target, such as `www.cloudflare.com:443` |
+| `REALITY_SERVER_NAME` | target host | Reality SNI/serverName |
+| `CLIENT_FINGERPRINT` | `chrome` by default pool | Client fingerprint used by generated config |
+| `REALITY_SELF_TEST` | `true` | Run local end-to-end Reality self-test |
+| `REALITY_AUTO_FALLBACK` | `true` | Try fallback targets when self-test fails |
+| `RESET_REALITY_CREDENTIALS` | `false` | Regenerate UUID/key/shortId |
+| `RESET_SUB_TOKEN` | `false` | Regenerate subscription token |
+| `PUBLIC_IP` | auto-detected | Override public IPv4 detection |
 
-```text
-initializing ciphers... aes-256-gcm
-tcp server listening at 0.0.0.0:8388
-udp server listening at 0.0.0.0:8388
-```
+Examples:
 
----
-
-## 11. Test Port Connectivity
-
-This README uses **Windows CMD** by default. CMD does not include `Test-NetConnection`.
-
-To test the port from CMD, run PowerShell through CMD:
-
-```cmd
-powershell -Command "Test-NetConnection [EC2_PUBLIC_IP] -Port 8388"
-```
-
-Example:
-
-```cmd
-powershell -Command "Test-NetConnection 13.232.43.141 -Port 8388"
-```
-
-If the result shows:
-
-```text
-TcpTestSucceeded : True
-```
-
-the port is reachable.
-
-If it shows:
-
-```text
-TcpTestSucceeded : False
-```
-
-check the following:
-
-1. EC2 Public IPv4 is correct.
-2. Security Group allows TCP 8388.
-3. Docker container is running.
-4. Clash uses the same port as the server.
-
----
-
-## 12. Useful Commands
-
-View Clash config:
+Custom port:
 
 ```bash
-sudo cat /opt/aws-clash-ss/clash.yaml
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env PORT=8443 bash
 ```
 
-View server information:
+Disable HTTP subscription hosting:
 
 ```bash
-sudo cat /opt/aws-clash-ss/server-info.txt
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env ENABLE_SUBSCRIPTION=false bash
 ```
 
-View running containers:
+Use a domestic DNS profile in generated Mihomo config:
 
 ```bash
-sudo docker ps
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env DNS_PROFILE=domestic bash
 ```
 
-View Shadowsocks logs:
+## DNS profiles
+
+The DNS profile only affects the generated Mihomo/Clash YAML.
+
+| Profile | Use case |
+|---|---|
+| `mixed` | Default general-purpose profile |
+| `foreign` | Mostly global/overseas sites |
+| `domestic` | China-oriented or return-home style usage |
+| `minimal` | Compatibility-first redir-host DNS |
+| `auto` | Selects domestic/foreign based on server country list |
+
+If a Clash/Mihomo client imports successfully but Global mode cannot open websites, try:
 
 ```bash
-sudo docker logs ss-server
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env DNS_PROFILE=domestic bash
 ```
 
-Restart Shadowsocks:
+Then delete the old profile in the client and import the new subscription again.
+
+## Useful server commands
+
+Check service status:
 
 ```bash
-sudo docker restart ss-server
+sudo systemctl status xray --no-pager
+sudo systemctl status nginx --no-pager
 ```
 
-Stop Shadowsocks:
+Check listening ports:
 
 ```bash
-sudo docker stop ss-server
+sudo ss -ltnp | grep -E ':(443|8080)'
 ```
 
-Remove Shadowsocks container:
+Test Xray config:
 
 ```bash
-sudo docker rm ss-server
+sudo /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json
 ```
 
----
-
-## 13. Regenerate Password and Config
-
-The script generates a new password every time it runs.
-
-To regenerate the password and Clash configuration, run:
+View logs:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sudo bash
+sudo journalctl -u xray -n 100 --no-pager
+sudo journalctl -u nginx -n 100 --no-pager
 ```
 
-Then download or copy the new Clash configuration again.
-
----
-
-## 14. EC2 Public IP Change
-
-If your EC2 instance uses an auto-assigned public IP, the Public IPv4 address may change after stopping and starting the instance.
-
-If Clash suddenly stops working, check:
-
-```text
-EC2 → Instances → Public IPv4 address
-```
-
-If the IP has changed, update the `server` field in Clash:
-
-```yaml
-server: YOUR_NEW_EC2_PUBLIC_IP
-```
-
-To avoid this issue, you can bind an Elastic IP to the EC2 instance.
-
----
-
-## 15. Troubleshooting
-
-### 15.1 Clash Shows Timeout
-
-Run this from Windows CMD:
-
-```cmd
-powershell -Command "Test-NetConnection [EC2_PUBLIC_IP] -Port 8388"
-```
-
-If `TcpTestSucceeded` is `False`, common causes are:
-
-- Security Group does not allow TCP 8388.
-- EC2 Public IP is wrong.
-- Docker container is not running.
-- The port in Clash does not match the server port.
-
----
-
-### 15.2 Port Is Reachable but Clash Still Fails
-
-Check whether these fields match the generated `clash.yaml`:
-
-```yaml
-server: YOUR_EC2_PUBLIC_IP
-port: 8388
-cipher: aes-256-gcm
-password: "YOUR_PASSWORD"
-```
-
-Common issues:
-
-- Password was typed incorrectly.
-- Wrong cipher method.
-- Old Clash config was not saved or reloaded.
-- EC2 public IP changed.
-
----
-
-### 15.3 Docker Logs Show the Wrong Port
-
-Run:
+Follow Xray logs:
 
 ```bash
-sudo docker ps
+sudo journalctl -u xray -f
 ```
 
-Expected mapping:
+## Troubleshooting
 
-```text
-0.0.0.0:8388->8388/tcp
-0.0.0.0:8388->8388/udp
-```
+### Client shows timeout
 
-If the mapping is different, rerun the script.
-
----
-
-### 15.4 SSH Cannot Connect
-
-Check the Security Group rule for SSH:
-
-```text
-TCP 22 Your IP
-```
-
-If your public IP changes, update the SSH rule to `My IP`.
-
-For temporary testing only, you can use:
-
-```text
-TCP 22 0.0.0.0/0
-```
-
-Do not keep SSH open to `0.0.0.0/0` permanently.
-
----
-
-## 16. Uninstall
-
-Stop and remove the Shadowsocks container:
+Check the server first:
 
 ```bash
-sudo docker stop ss-server
-sudo docker rm ss-server
+sudo systemctl is-active xray
+sudo ss -ltnp | grep ':443'
+sudo /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json
 ```
 
-Remove generated files:
+From Windows PowerShell:
+
+```powershell
+Test-NetConnection SERVER_IP -Port 443
+```
+
+If TCP `443` is not reachable, check cloud firewall/security group rules and the server public IP.
+
+### Subscription URL cannot be opened
+
+Check nginx and port `8080`:
 
 ```bash
-sudo rm -rf /opt/aws-clash-ss
+sudo systemctl is-active nginx
+sudo ss -ltnp | grep ':8080'
+sudo cat /opt/cloud-xray-terminal/subscription.env
 ```
 
-If you no longer need the EC2 instance, stop or terminate it from the AWS console to avoid ongoing charges.
+Make sure TCP `8080` is allowed by the cloud firewall if you want to access subscriptions from outside.
+
+### It worked before but suddenly fails
+
+Reality targets can become unsuitable over time. Re-run the script. It will self-test the saved target and try fallback targets if needed:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
+```
+
+If needed, manually choose a known working target:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
+REALITY_DEST=www.cloudflare.com:443 \
+REALITY_SERVER_NAME=www.cloudflare.com \
+CLIENT_FINGERPRINT=chrome \
+bash
+```
+
+### Imported node works in one client but not another
+
+Check whether the client supports:
+
+```text
+VLESS
+Reality
+XTLS Vision / flow=xtls-rprx-vision
+uTLS / client fingerprint
+```
+
+For Mihomo/Clash-based clients, use the `/clash.yaml` subscription.
+
+For clients that support URI-list imports, use `/sub/TOKEN`.
+
+### Server IP changed
+
+If the VPS public IP changes, re-run the script so the generated subscription points to the new IP:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
+```
+
+Then update or re-import the client subscription.
+
+## Uninstall
+
+Stop and remove the Xray service and generated files:
+
+```bash
+sudo systemctl disable --now xray 2>/dev/null || true
+sudo rm -f /etc/systemd/system/xray.service
+sudo rm -rf /opt/cloud-xray-terminal
+sudo rm -f /usr/local/etc/xray/config.json
+sudo systemctl daemon-reload
+```
+
+Remove the managed nginx subscription site:
+
+```bash
+sudo rm -f /etc/nginx/sites-enabled/cloud-xray-terminal-subscription
+sudo rm -f /etc/nginx/sites-available/cloud-xray-terminal-subscription
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+The commands above do not uninstall nginx or the Xray binary in `/usr/local/bin/xray`.
+
+## Security notes
+
+- Keep SSH port `22` restricted to your own IP.
+- Do not share `server-info.txt`, `reality.env`, `subscription.env`, or the subscription URLs publicly.
+- The HTTP subscription contains your complete client configuration.
+- Restrict TCP `8080` when possible.
+- Do not commit generated server files, keys, or subscriptions to GitHub.
+
+## License
+
+MIT License.
 
 ---
 
-## 17. Security Notes
+# 中文
 
-Do not upload the following files to GitHub:
-- AWS SSH private key
-- Shadowsocks password
-- Server IP
-- Proxy configuration
+RayLink 是一个用于个人 Linux VPS 的 Xray VLESS Reality terminal 节点部署脚本。
 
----
+它会安装 Xray，写入 systemd 服务，生成持久化 VLESS Reality 参数，创建客户端订阅，并在输出订阅前执行端到端 Reality 自测。
 
-## 18. License
+请仅用于合法、合规的网络访问。云服务器和流量可能产生费用。
 
-This project is released under the MIT License.
+## 部署内容
 
----
+默认部署：
 
-# 中文说明
+| 项目 | 默认值 |
+|---|---|
+| 协议 | VLESS Reality |
+| 传输 | TCP |
+| 节点端口 | `443` |
+| 订阅端口 | `8080` |
+| Xray 服务用户 | `xray:xray` |
+| 安装目录 | `/opt/cloud-xray-terminal` |
+| Xray 配置 | `/usr/local/etc/xray/config.json` |
+| 客户端配置 | Mihomo/Clash YAML 和 Base64 URI-list |
+| Reality target | 自动自测，默认从 `www.cloudflare.com:443` 开始 |
+| TCP Fast Open | 默认关闭 |
 
-AWS EC2 一键部署 Shadowsocks，并自动生成 Clash 配置文件和手机端 URL 链接。
-
-本项目用于在 AWS EC2 Ubuntu 服务器上一键部署 Shadowsocks 服务端，并自动生成 Clash 可导入的 YAML 配置文件，以及用于一键导入的 Shadowsocks URL 链接。
-
-## 默认配置
-
-- 服务器：AWS EC2
-- 系统：Ubuntu 24.04
-- 协议：Shadowsocks
-- 端口：8388
-- 加密方式：aes-256-gcm
-- 客户端：Clash / Clash Verge / Clash for Windows / Clash Meta
-- Docker 镜像：`shadowsocks/shadowsocks-libev`
-
-> 请仅用于合法、合规的网络访问。AWS EC2 和流量可能产生费用，请注意账单。
-
----
-
-## 1. 功能
-
-该脚本会自动完成以下操作：
-
-1. 更新 Ubuntu 软件包列表。
-2. 安装 Docker。
-3. 启动并启用 Docker 服务。
-4. 自动生成 Shadowsocks 随机密码。
-5. 如果旧的 Shadowsocks 容器存在，则自动删除。
-6. 创建新的 Shadowsocks Docker 容器。
-7. 自动生成 Clash 配置文件。
-8. 输出服务器信息和 Clash 配置。
-
-最终流量路径：
+流量路径：
 
 ```text
-Clash → EC2 Public IP:8388 → Docker Container:8388 → Shadowsocks Server
+客户端
+→ VPS 公网 IP:443
+→ Xray VLESS Reality 入站
+→ VPS 直连出站
+→ Internet
 ```
 
----
+## 环境要求
 
-## 2. AWS EC2 准备
+推荐环境：
 
-### 2.1 登录 AWS
+- Ubuntu 22.04 / 24.04 / 26.04，或带 `apt` 和 `systemd` 的 Debian-like 系统
+- 可使用 `sudo`
+- 有公网 IPv4
+- 可以修改云防火墙或安全组
 
-进入 AWS 控制台。
+这个脚本适合普通 VPS、AWS EC2、Google Cloud、Oracle Cloud、Azure 等 Linux 服务器。不适合直接跑在 OpenWrt 上。
 
-在搜索栏中搜索：
+## 防火墙 / 安全组
 
-```text
-EC2
-```
+需要开放这些 TCP 入站端口：
 
-打开 EC2 服务后，点击：
-
-```text
-Launch instance
-```
-
----
-
-### 2.2 选择服务器系统
-
-推荐系统镜像：
-
-```text
-Ubuntu Server 24.04 LTS
-```
-
-不建议选择 Windows，因为 Windows Server 成本更高，也不适合运行这种轻量级代理服务。
-
----
-
-### 2.3 选择实例类型
-
-如果只是个人使用，推荐：
-
-```text
-t3.micro
-```
-
-如果你想使用更便宜的 ARM 架构实例，可以选择：
-
-```text
-t4g.micro
-```
-
-### 2.4 创建 Key Pair
-
-在 **Key pair** 部分选择：
-
-```text
-Create new key pair
-```
-
-示例名称：
-
-```text
-aws-clash-key
-```
-
-密钥类型：
-
-```text
-RSA
-```
-
-私钥文件格式：
-
-```text
-.pem
-```
-
-然后下载该私钥文件。
-
-你会得到类似这样的文件：
-
-```text
-aws-clash-key.pem
-```
-
-这个文件非常重要，之后 SSH 登录 EC2 服务器需要用到它。
-
----
-
-### 2.5 配置安全组
-
-在 EC2 Security Group 的 Inbound rules 中添加：
-
-| Type | Protocol | Port | Source |
-|---|---|---:|---|
-| SSH | TCP | 22 | 你的 IP |
-| Custom TCP | TCP | 8388 | 0.0.0.0/0 |
-| Custom UDP | UDP | 8388 | 0.0.0.0/0 |
+| 端口 | 协议 | 用途 | 建议来源 |
+|---:|---|---|---|
+| `22` | TCP | SSH | 你的 IP |
+| `443` | TCP | VLESS Reality 节点 | `0.0.0.0/0` |
+| `8080` | TCP | HTTP 订阅 | 尽量只允许你的 IP |
 
 说明：
 
-- `22` 端口用于 SSH 登录服务器，建议只允许你自己的 IP 访问。
-- `8388` 端口用于 Clash 连接 Shadowsocks 服务端。
-- 如果你使用其他端口，例如 `443`，请同步修改安全组规则。
+- Reality over TCP 不需要 UDP `443`。
+- 订阅 URL 包含完整客户端配置，不要公开。
+- 长期使用建议限制 TCP `8080` 来源 IP，或导入客户端后关闭订阅服务。
 
----
+## 一键安装
 
-### 2.6 启动实例
+SSH 登录服务器后运行：
 
-检查 AMI、实例类型、Key Pair、存储和安全组设置无误后，点击：
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
+```
+
+安装完成后会输出两个订阅 URL：
 
 ```text
-Launch instance
+Universal URI-list:
+http://SERVER_IP:8080/sub/TOKEN
+
+Mihomo / Clash Meta:
+http://SERVER_IP:8080/sub/TOKEN/clash.yaml
 ```
 
-等待实例状态变成：
+Mihomo/Clash 类客户端使用 `/clash.yaml`。v2rayN、v2rayNG、Hiddify、Shadowrocket 等客户端可尝试使用通用 URI-list。
+
+## 客户端导入
+
+### Mihomo / Clash Meta / FlClash / Clash Verge Rev
+
+导入这个 URL：
 
 ```text
-Running
+http://SERVER_IP:8080/sub/TOKEN/clash.yaml
 ```
 
-然后复制实例的公网 IP：
+然后选择：
 
 ```text
-Public IPv4 address
+GLOBAL → Terminal-Reality
 ```
 
-这个 IP 地址后面会用于 SSH 登录和 Clash 配置。
+并开启系统代理或 TUN 模式。
 
----
+### Shadowrocket / v2rayN / v2rayNG / Hiddify
 
-## 3. SSH 登录 EC2 实例
+导入通用 URI-list：
 
-本说明默认使用 **Windows CMD**。
-
-打开 CMD，并进入 `.pem` 私钥文件所在的文件夹。
-
-例如，如果你的私钥文件在 Downloads 文件夹：
-
-```cmd
-cd %USERPROFILE%\Downloads
+```text
+http://SERVER_IP:8080/sub/TOKEN
 ```
 
-使用下面的命令格式：
+也可以从服务器复制直连 VLESS 链接：
 
-```cmd
-ssh -i [KEY_FILE].pem ubuntu@[EC2_PUBLIC_IP]
+```bash
+sudo cat /opt/cloud-xray-terminal/vless-uri.txt
 ```
+
+直连链接适合排错，日常使用订阅更方便更新。
+
+## 生成文件
+
+安装后会生成：
+
+```text
+/opt/cloud-xray-terminal/server-info.txt
+/opt/cloud-xray-terminal/clash.yaml
+/opt/cloud-xray-terminal/vless-uri.txt
+/opt/cloud-xray-terminal/vless-uri-list
+/opt/cloud-xray-terminal/reality.env
+/opt/cloud-xray-terminal/subscription.env
+/usr/local/etc/xray/config.json
+```
+
+常用查看命令：
+
+```bash
+sudo cat /opt/cloud-xray-terminal/server-info.txt
+sudo cat /opt/cloud-xray-terminal/subscription.env
+sudo cat /opt/cloud-xray-terminal/vless-uri.txt
+sudo cat /opt/cloud-xray-terminal/clash.yaml
+```
+
+## 重跑脚本
+
+重复运行脚本是安全的。默认会复用：
+
+- UUID
+- Reality 私钥/公钥
+- shortId
+- Reality target
+- 客户端 fingerprint
+- 订阅 token
+
+这样旧客户端订阅不会因为重跑脚本而失效，除非你主动重置。
+
+重新生成 Reality 凭据：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env RESET_REALITY_CREDENTIALS=true bash
+```
+
+只重新生成订阅 token：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env RESET_SUB_TOKEN=true bash
+```
+
+## Reality target 自测和自动切换
+
+Reality 依赖合适的 TLS target。有些 target 可以通过普通 TLS 检查，但实际 Reality 握手会失败。
+
+脚本会做两层检查：
+
+1. 用 `openssl` 检查目标是否支持 TLS 1.3。
+2. 启动临时本地 Xray SOCKS 客户端，连接回本机 Reality 入站，做端到端自测。
+
+如果自测失败并且 fallback 开启，脚本会尝试候选 target，并保存第一个可用的组合。
+
+候选格式：
+
+```text
+dest|serverName|clientFingerprint
+```
+
+默认候选：
+
+```text
+www.cloudflare.com:443|www.cloudflare.com|chrome
+www.apple.com:443|www.apple.com|safari
+addons.mozilla.org:443|addons.mozilla.org|firefox
+www.speedtest.net:443|www.speedtest.net|chrome
+www.microsoft.com:443|www.microsoft.com|chrome
+```
+
+手动指定 target：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
+REALITY_DEST=www.cloudflare.com:443 \
+REALITY_SERVER_NAME=www.cloudflare.com \
+CLIENT_FINGERPRINT=chrome \
+bash
+```
+
+自定义候选列表：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
+REALITY_TARGET_CANDIDATES='www.cloudflare.com:443|www.cloudflare.com|chrome www.apple.com:443|www.apple.com|safari' \
+bash
+```
+
+仅在明确知道原因时关闭自测：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env REALITY_SELF_TEST=false bash
+```
+
+## 常用参数
+
+环境变量写在 `bash` 前面：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env KEY=value bash
+```
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `PORT` | `443` | Xray Reality 入站端口 |
+| `SUB_PORT` | `8080` | HTTP 订阅端口 |
+| `NODE_NAME` | `Terminal-Reality` | 客户端节点名称 |
+| `ENABLE_SUBSCRIPTION` | `true` | 是否启用 nginx 订阅服务 |
+| `ENABLE_TFO` | `false` | 是否在 Xray 和生成的客户端配置中启用 TCP Fast Open |
+| `DNS_PROFILE` | `mixed` | 生成 Mihomo/Clash YAML 时使用的 DNS 配置 |
+| `REALITY_DEST` | 自动/默认 | Reality target，例如 `www.cloudflare.com:443` |
+| `REALITY_SERVER_NAME` | target 主机名 | Reality SNI/serverName |
+| `CLIENT_FINGERPRINT` | 默认从 `chrome` 开始 | 客户端 fingerprint |
+| `REALITY_SELF_TEST` | `true` | 是否执行本地端到端 Reality 自测 |
+| `REALITY_AUTO_FALLBACK` | `true` | 自测失败时是否尝试候选 target |
+| `RESET_REALITY_CREDENTIALS` | `false` | 是否重新生成 UUID/key/shortId |
+| `RESET_SUB_TOKEN` | `false` | 是否重新生成订阅 token |
+| `PUBLIC_IP` | 自动检测 | 手动指定公网 IPv4 |
 
 示例：
 
-```cmd
-ssh -i aws-clash-key.pem ubuntu@13.232.43.141
-```
-
-对于 Ubuntu AMI，默认用户名通常是：
-
-```text
-ubuntu
-```
-
----
-
-## 4. 一键安装
-
-在 EC2 服务器中运行：
+自定义节点端口：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env PORT=8443 bash
 ```
 
----
-
-## 5. 自定义端口
-
-默认端口是：
-
-```text
-8388
-```
-
-如果想使用其他端口，例如 `443`，可以运行：
+关闭 HTTP 订阅：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sudo PORT=443 bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env ENABLE_SUBSCRIPTION=false bash
 ```
 
-如果使用自定义端口，请同时修改 AWS Security Group：
-
-| Type | Protocol | Port | Source |
-|---|---|---:|---|
-| Custom TCP | TCP | 443 | 0.0.0.0/0 |
-| Custom UDP | UDP | 443 | 0.0.0.0/0 |
-
----
-
-## 6. 自定义加密方式
-
-默认加密方式是：
-
-```text
-aes-256-gcm
-```
-
-如果想指定其他加密方式，例如 `aes-128-gcm`，可以运行：
+生成更偏国内解析的 Mihomo 配置：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sudo METHOD=aes-128-gcm bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env DNS_PROFILE=domestic bash
 ```
 
-推荐使用：
+## DNS 配置
 
-```text
-aes-256-gcm
-```
+DNS profile 只影响生成的 Mihomo/Clash YAML。
 
----
+| Profile | 适用场景 |
+|---|---|
+| `mixed` | 默认通用配置 |
+| `foreign` | 主要访问海外网站 |
+| `domestic` | 回国/主要访问中国网站 |
+| `minimal` | 兼容优先的 redir-host 配置 |
+| `auto` | 根据服务器国家列表选择 domestic 或 foreign |
 
-## 7. 生成的文件
-
-安装完成后，脚本会生成：
-
-```text
-/opt/aws-clash-ss/server-info.txt
-/opt/aws-clash-ss/clash.yaml
-```
-
-查看服务器信息：
+如果 Clash/Mihomo 能导入节点，但 Global 后网页打不开，可以试：
 
 ```bash
-sudo cat /opt/aws-clash-ss/server-info.txt
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env DNS_PROFILE=domestic bash
 ```
 
-查看 Clash 配置：
+然后删除客户端旧 profile，重新导入新订阅。
+
+## 常用服务器命令
+
+检查服务：
 
 ```bash
-sudo cat /opt/aws-clash-ss/clash.yaml
+sudo systemctl status xray --no-pager
+sudo systemctl status nginx --no-pager
 ```
 
----
+检查端口：
 
-## 8. 生成的客户端配置
+```bash
+sudo ss -ltnp | grep -E ':(443|8080)'
+```
 
-安装完成后，脚本会生成两种客户端配置：
+测试 Xray 配置：
 
-1. 适合所有客户端的 URL 链接。
-2. 适合 Clash 类客户端的 YAML 配置文件。
+```bash
+sudo /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json
+```
 
----
+查看日志：
 
-### 8.1 Shadowsocks URL 链接
+```bash
+sudo journalctl -u xray -n 100 --no-pager
+sudo journalctl -u nginx -n 100 --no-pager
+```
 
-脚本会生成一个标准的 Shadowsocks URL 链接。
+实时查看 Xray 日志：
 
-这个链接适合所有客户端，例如：
+```bash
+sudo journalctl -u xray -f
+```
 
-- Android: Surfboard
-- iOS: Shadowrocket
+## 排错
 
-`URL` 链接会在安装完成后的终端输出中显示：
+### 客户端显示 timeout
+
+先在服务器检查：
+
+```bash
+sudo systemctl is-active xray
+sudo ss -ltnp | grep ':443'
+sudo /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json
+```
+
+Windows PowerShell 测试：
+
+```powershell
+Test-NetConnection SERVER_IP -Port 443
+```
+
+如果 TCP `443` 不通，检查云防火墙/安全组和服务器公网 IP。
+
+### 订阅 URL 打不开
+
+检查 nginx 和 `8080`：
+
+```bash
+sudo systemctl is-active nginx
+sudo ss -ltnp | grep ':8080'
+sudo cat /opt/cloud-xray-terminal/subscription.env
+```
+
+如果要从外部访问订阅，确认云防火墙允许 TCP `8080`。
+
+### 之前能用，突然失效
+
+Reality target 可能随时间变得不适合。重跑脚本，它会自测已保存 target，并在失败时尝试 fallback：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
+```
+
+必要时手动指定已知可用 target：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
+REALITY_DEST=www.cloudflare.com:443 \
+REALITY_SERVER_NAME=www.cloudflare.com \
+CLIENT_FINGERPRINT=chrome \
+bash
+```
+
+### 一个客户端能用，另一个不能用
+
+检查客户端是否支持：
 
 ```text
-URL link:
-ss://...
+VLESS
+Reality
+XTLS Vision / flow=xtls-rprx-vision
+uTLS / client fingerprint
 ```
 
-同时也会保存到 EC2 服务器上：
+Mihomo/Clash 类客户端请用 `/clash.yaml` 订阅。
 
-```text
-/opt/aws-clash-ss/ss-uri.txt
-```
+支持 URI-list 的客户端使用 `/sub/TOKEN`。
 
-在 EC2 服务器上查看该链接：
+### 服务器公网 IP 变了
+
+如果 VPS 公网 IP 改变，重跑脚本生成新的订阅：
 
 ```bash
-sudo cat /opt/aws-clash-ss/ss-uri.txt
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
 ```
 
-使用 Windows CMD 下载到本机 Downloads 文件夹：
+然后更新或重新导入客户端订阅。
 
-```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[EC2_PUBLIC_IP]:/opt/aws-clash-ss/ss-uri.txt %USERPROFILE%\Downloads\ss-uri.txt
-```
+## 卸载
 
-示例：
-
-```cmd
-scp -i %USERPROFILE%\Downloads\aws-clash-key.pem ubuntu@13.232.43.141:/opt/aws-clash-ss/ss-uri.txt %USERPROFILE%\Downloads\ss-uri.txt
-```
-
-如果手机端客户端支持从剪贴板导入，可以直接复制 `URL` 链接并粘贴到 App 中。
-
-如果手机端客户端不支持直接导入 `URL`，也可以手动添加 Shadowsocks 节点：
-
-```text
-Type: Shadowsocks
-Server: YOUR_EC2_PUBLIC_IP
-Port: 8388
-Method / Cipher: aes-256-gcm
-Password: YOUR_GENERATED_PASSWORD
-UDP: Enable
-```
-
----
-
-### 8.2 Clash YAML 配置文件
-
-脚本也会生成一个 Clash 兼容的 YAML 配置文件。
-
-该文件保存在 EC2 服务器上：
-
-```text
-/opt/aws-clash-ss/clash.yaml
-```
-
-查看 Clash 配置文件：
+停止并删除 Xray 服务和生成文件：
 
 ```bash
-sudo cat /opt/aws-clash-ss/clash.yaml
+sudo systemctl disable --now xray 2>/dev/null || true
+sudo rm -f /etc/systemd/system/xray.service
+sudo rm -rf /opt/cloud-xray-terminal
+sudo rm -f /usr/local/etc/xray/config.json
+sudo systemctl daemon-reload
 ```
 
-生成的 Clash 配置大致如下：
-
-```yaml
-mixed-port: 7890
-allow-lan: false
-mode: global
-log-level: info
-
-proxies:
-  - name: "AWS-SS"
-    type: ss
-    server: YOUR_EC2_PUBLIC_IP
-    port: 8388
-    cipher: aes-256-gcm
-    password: "YOUR_GENERATED_PASSWORD"
-    udp: true
-
-proxy-groups:
-  - name: "GLOBAL"
-    type: select
-    proxies:
-      - AWS-SS
-      - DIRECT
-
-rules:
-  - MATCH,GLOBAL
-```
-
-将生成的 `clash.yaml` 导入 Clash，然后选择：
-
-```text
-GLOBAL → AWS-SS
-```
-
-在 Clash 中开启系统代理或 TUN 模式。
-
----
-
-## 9. 下载 Clash 配置到本机
-
-生成的 Clash 配置保存在 EC2 服务器上：
-
-```text
-/opt/aws-clash-ss/clash.yaml
-```
-
-在本地 Windows CMD 中，可以使用 `scp` 下载到 Downloads 文件夹：
-
-```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[EC2_PUBLIC_IP]:/opt/aws-clash-ss/clash.yaml %USERPROFILE%\Downloads\aws-clash.yaml
-```
-
-示例：
-
-```cmd
-scp -i %USERPROFILE%\Downloads\aws-clash-key.pem ubuntu@13.232.43.141:/opt/aws-clash-ss/clash.yaml %USERPROFILE%\Downloads\aws-clash.yaml
-```
-
-如果你当前已经在 Downloads 文件夹，也可以使用：
-
-```cmd
-scp -i [KEY_FILE].pem ubuntu@[EC2_PUBLIC_IP]:/opt/aws-clash-ss/clash.yaml aws-clash.yaml
-```
-
-示例：
-
-```cmd
-scp -i aws-clash-key.pem ubuntu@13.232.43.141:/opt/aws-clash-ss/clash.yaml aws-clash.yaml
-```
-
-然后在 Clash 中导入这个文件：
-
-```text
-Downloads\aws-clash.yaml
-```
-
----
-
-## 10. 检查 Docker 状态
-
-检查 Shadowsocks 容器是否正在运行：
+删除脚本管理的 nginx 订阅站点：
 
 ```bash
-sudo docker ps
+sudo rm -f /etc/nginx/sites-enabled/cloud-xray-terminal-subscription
+sudo rm -f /etc/nginx/sites-available/cloud-xray-terminal-subscription
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-正常输出中应该包含类似内容：
+上面的命令不会卸载 nginx，也不会删除 `/usr/local/bin/xray`。
 
-```text
-0.0.0.0:8388->8388/tcp
-0.0.0.0:8388->8388/udp
-```
+## 安全注意
 
-查看 Shadowsocks 日志：
+- SSH `22` 端口尽量只允许自己的 IP。
+- 不要公开 `server-info.txt`、`reality.env`、`subscription.env` 或订阅 URL。
+- HTTP 订阅里包含完整客户端配置。
+- 尽量限制 TCP `8080` 的来源 IP。
+- 不要把服务器生成的密钥、订阅、配置文件提交到 GitHub。
 
-```bash
-sudo docker logs ss-server
-```
+## License
 
-正常日志中应该包含：
-
-```text
-initializing ciphers... aes-256-gcm
-tcp server listening at 0.0.0.0:8388
-udp server listening at 0.0.0.0:8388
-```
-
----
-
-## 11. 测试端口连通性
-
-本说明默认使用 **Windows CMD**。CMD 本身没有 `Test-NetConnection` 命令。
-
-如果想从 CMD 测试端口，可以在 CMD 中调用 PowerShell：
-
-```cmd
-powershell -Command "Test-NetConnection [EC2_PUBLIC_IP] -Port 8388"
-```
-
-示例：
-
-```cmd
-powershell -Command "Test-NetConnection 13.232.43.141 -Port 8388"
-```
-
-如果结果显示：
-
-```text
-TcpTestSucceeded : True
-```
-
-说明端口可以访问。
-
-如果显示：
-
-```text
-TcpTestSucceeded : False
-```
-
-请检查以下内容：
-
-1. EC2 Public IPv4 是否正确。
-2. Security Group 是否允许 TCP 8388。
-3. Docker 容器是否正在运行。
-4. Clash 中填写的端口是否和服务器一致。
-
----
-
-## 12. 常用命令
-
-查看 Clash 配置：
-
-```bash
-sudo cat /opt/aws-clash-ss/clash.yaml
-```
-
-查看服务器信息：
-
-```bash
-sudo cat /opt/aws-clash-ss/server-info.txt
-```
-
-查看正在运行的容器：
-
-```bash
-sudo docker ps
-```
-
-查看 Shadowsocks 日志：
-
-```bash
-sudo docker logs ss-server
-```
-
-重启 Shadowsocks：
-
-```bash
-sudo docker restart ss-server
-```
-
-停止 Shadowsocks：
-
-```bash
-sudo docker stop ss-server
-```
-
-删除 Shadowsocks 容器：
-
-```bash
-sudo docker rm ss-server
-```
-
----
-
-## 13. 重新生成密码和配置
-
-脚本每次运行都会生成一个新密码。
-
-如果想重新生成密码和 Clash 配置，可以运行：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/aws-ss-clash/main/clash_ss.sh | sudo bash
-```
-
-然后重新下载或复制新的 Clash 配置。
-
----
-
-## 14. EC2 公网 IP 变化
-
-如果你的 EC2 使用 Auto-assigned public IP，那么实例 Stop 再 Start 后，Public IPv4 可能会改变。
-
-如果 Clash 突然无法连接，优先检查：
-
-```text
-EC2 → Instances → Public IPv4 address
-```
-
-如果 IP 已经变化，请更新 Clash 配置中的 `server` 字段：
-
-```yaml
-server: YOUR_NEW_EC2_PUBLIC_IP
-```
-
-如果想避免 IP 改变，可以给 EC2 绑定 Elastic IP。
-
----
-
-## 15. 常见问题排查
-
-### 15.1 Clash 显示 Timeout
-
-在 Windows CMD 中运行：
-
-```cmd
-powershell -Command "Test-NetConnection [EC2_PUBLIC_IP] -Port 8388"
-```
-
-如果 `TcpTestSucceeded` 是 `False`，常见原因包括：
-
-- Security Group 没有开放 TCP 8388。
-- EC2 Public IP 写错。
-- Docker 容器没有运行。
-- Clash 中的端口和服务器端口不一致。
-
----
-
-### 15.2 端口可达但 Clash 仍然失败
-
-检查下面这些字段是否和生成的 `clash.yaml` 完全一致：
-
-```yaml
-server: YOUR_EC2_PUBLIC_IP
-port: 8388
-cipher: aes-256-gcm
-password: "YOUR_PASSWORD"
-```
-
-常见问题：
-
-- 密码输入错误。
-- 加密方式错误。
-- Clash 旧配置没有保存或重新加载。
-- EC2 公网 IP 已变化。
-
----
-
-### 15.3 Docker 日志显示端口不对
-
-运行：
-
-```bash
-sudo docker ps
-```
-
-正常映射应为：
-
-```text
-0.0.0.0:8388->8388/tcp
-0.0.0.0:8388->8388/udp
-```
-
-如果映射不同，建议重新运行脚本。
-
----
-
-### 15.4 SSH 无法连接
-
-检查 Security Group 中的 SSH 规则：
-
-```text
-TCP 22 Your IP
-```
-
-如果你的公网 IP 改变了，需要把 SSH 规则重新设置为 `My IP`。
-
-仅在临时测试时，可以使用：
-
-```text
-TCP 22 0.0.0.0/0
-```
-
-不要长期把 SSH 开放给 `0.0.0.0/0`。
-
----
-
-## 16. 卸载
-
-停止并删除 Shadowsocks 容器：
-
-```bash
-sudo docker stop ss-server
-sudo docker rm ss-server
-```
-
-删除生成的文件：
-
-```bash
-sudo rm -rf /opt/aws-clash-ss
-```
-
-如果不再需要该 EC2 实例，请在 AWS 控制台中 Stop 或 Terminate，避免继续产生费用。
-
----
-
-## 17. 安全提醒
-
-请不要把以下文件上传到 GitHub：
-- AWS SSH 私钥
-- Shadowsocks 密码
-- 服务器 IP
-- 代理配置
-
----
-
-## 18. 开源协议
-
-本项目使用 MIT License 开源。
+MIT License.
