@@ -109,7 +109,7 @@ ubuntu
 
 Other providers may use `root`, `debian`, `admin`, or another username shown in their control panel.
 
-## One-line installation
+## One-click installation
 
 Run this command on the Linux server:
 
