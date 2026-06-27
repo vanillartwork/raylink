@@ -192,19 +192,19 @@ sudo cat /opt/cloud-xray-terminal/clash.yaml
 From Windows CMD, download the generated Clash YAML to your Downloads folder:
 
 ```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
+scp -i %USERPROFILE%\Downloads\[KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
 ```
 
 Example:
 
 ```cmd
-scp -i %USERPROFILE%\Downloads\raylink-key.pem ubuntu@18.175.219.66:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
+scp -i %USERPROFILE%\Downloads\key.pem ubuntu@192.168.1.1:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
 ```
 
 You can also download the direct VLESS link file:
 
 ```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-uri.txt %USERPROFILE%\Downloads\vless-uri.txt
+scp -i %USERPROFILE%\Downloads\[KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-uri.txt %USERPROFILE%\Downloads\vless-uri.txt
 ```
 
 ## Common customization
@@ -379,7 +379,7 @@ powershell -Command "Test-NetConnection [SERVER_PUBLIC_IP] -Port 8080"
 Example:
 
 ```cmd
-powershell -Command "Test-NetConnection 18.175.219.66 -Port 443"
+powershell -Command "Test-NetConnection 192.168.1.1 -Port 443"
 ```
 
 If `TcpTestSucceeded` is `False`, check:
@@ -682,19 +682,19 @@ sudo cat /opt/cloud-xray-terminal/clash.yaml
 在 Windows CMD 中，可以把生成的 Clash YAML 下载到 Downloads 文件夹：
 
 ```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
+scp -i %USERPROFILE%\Downloads\[KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
 ```
 
 示例：
 
 ```cmd
-scp -i %USERPROFILE%\Downloads\raylink-key.pem ubuntu@18.175.219.66:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
+scp -i %USERPROFILE%\Downloads\key.pem ubuntu@192.168.1.1:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
 ```
 
 也可以下载直接 VLESS 链接文件：
 
 ```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-uri.txt %USERPROFILE%\Downloads\vless-uri.txt
+scp -i %USERPROFILE%\Downloads\[KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-uri.txt %USERPROFILE%\Downloads\vless-uri.txt
 ```
 
 ## 部署时的常用自定义参数
@@ -871,7 +871,7 @@ powershell -Command "Test-NetConnection [SERVER_PUBLIC_IP] -Port 8080"
 示例：
 
 ```cmd
-powershell -Command "Test-NetConnection 18.175.219.66 -Port 443"
+powershell -Command "Test-NetConnection 192.168.1.1 -Port 443"
 ```
 
 如果 `TcpTestSucceeded` 是 `False`，检查：
