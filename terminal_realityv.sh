@@ -43,11 +43,11 @@ REALITY_ENV_FILE="${INSTALL_DIR}/reality.env"
 REALITY_DEST="${REALITY_DEST:-}"
 REALITY_SERVER_NAME="${REALITY_SERVER_NAME:-}"
 CLIENT_FINGERPRINT="${CLIENT_FINGERPRINT:-}"
-CLIENT_FINGERPRINT_POOL="${CLIENT_FINGERPRINT_POOL:-chrome firefox safari edge}"
+CLIENT_FINGERPRINT_POOL="${CLIENT_FINGERPRINT_POOL:-chrome}"
 FLOW="${FLOW:-}"
 
-# TCP Fast Open. Enabled by default. Set ENABLE_TFO=false if a client or network path has compatibility issues.
-ENABLE_TFO="${ENABLE_TFO:-true}"
+# TCP Fast Open. Disabled by default for better compatibility. Set ENABLE_TFO=true if your client and network path support it.
+ENABLE_TFO="${ENABLE_TFO:-false}"
 
 # DNS profile for generated Mihomo/Clash YAML.
 # The best DNS choice depends mainly on the sites you intend to visit, not only on VPS location.
@@ -67,6 +67,18 @@ DNS_EFFECTIVE_PROFILE=""
 CHECK_REALITY_TARGET="${CHECK_REALITY_TARGET:-true}"
 REALITY_CHECK_STRICT="${REALITY_CHECK_STRICT:-false}"
 REALITY_CHECK_LOG="${REALITY_CHECK_LOG:-/tmp/reality_target_check.log}"
+
+# End-to-end Reality self-test. This starts a temporary local Xray SOCKS client on
+# the server and connects back to the local Reality inbound. It catches cases where
+# a target passes a simple TLS check but fails a real Reality handshake.
+REALITY_SELF_TEST="${REALITY_SELF_TEST:-true}"
+REALITY_SELF_TEST_URL="${REALITY_SELF_TEST_URL:-http://example.com}"
+REALITY_SELF_TEST_TIMEOUT="${REALITY_SELF_TEST_TIMEOUT:-10}"
+REALITY_SELF_TEST_SOCKS_PORT="${REALITY_SELF_TEST_SOCKS_PORT:-10808}"
+REALITY_AUTO_FALLBACK="${REALITY_AUTO_FALLBACK:-true}"
+# Format: dest|serverName|clientFingerprint separated by spaces.
+# Put the proven/currently most reliable candidates first.
+REALITY_TARGET_CANDIDATES="${REALITY_TARGET_CANDIDATES:-www.cloudflare.com:443|www.cloudflare.com|chrome www.apple.com:443|www.apple.com|safari www.yahoo.com:443|www.yahoo.com|chrome www.microsoft.com:443|www.microsoft.com|chrome}"
 
 # Clash/Mihomo subscription hosting. Enabled by default.
 # Set ENABLE_SUBSCRIPTION=false to disable and remove this script's managed nginx site link.
@@ -180,7 +192,7 @@ detect_public_ipv4() {
 }
 
 pick_random_fingerprint() {
-  local pool_string="${CLIENT_FINGERPRINT_POOL:-chrome firefox safari edge}"
+  local pool_string="${CLIENT_FINGERPRINT_POOL:-chrome}"
   local -a pool
   local count idx
 
@@ -199,7 +211,7 @@ pick_random_fingerprint() {
 
 normalize_reality_target() {
   if [ -z "${REALITY_DEST}" ]; then
-    REALITY_DEST="www.microsoft.com:443"
+    REALITY_DEST="www.cloudflare.com:443"
   fi
 
   if [ -z "${REALITY_SERVER_NAME}" ]; then
@@ -900,6 +912,218 @@ CONFIG_EOF
   chmod 640 "${XRAY_CONFIG}"
 }
 
+
+select_free_local_port() {
+  local preferred="${1:-10808}"
+  local port
+
+  for port in "${preferred}" 10809 18080 28080 38080; do
+    if ! ss -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "(^|:)${port}$"; then
+      printf '%s\n' "${port}"
+      return 0
+    fi
+  done
+
+  port=$((30000 + RANDOM % 20000))
+  printf '%s\n' "${port}"
+}
+
+save_reality_env() {
+  write_kv_env_file "${REALITY_ENV_FILE}" \
+    UUID "${UUID}" \
+    PRIVATE_KEY "${PRIVATE_KEY}" \
+    PUBLIC_KEY "${PUBLIC_KEY}" \
+    SHORT_ID "${SHORT_ID}" \
+    REALITY_DEST "${REALITY_DEST}" \
+    REALITY_SERVER_NAME "${REALITY_SERVER_NAME}" \
+    CLIENT_FINGERPRINT "${CLIENT_FINGERPRINT}" \
+    FLOW "${FLOW}"
+}
+
+run_reality_self_test_once() {
+  if ! is_true "${REALITY_SELF_TEST}"; then
+    echo "Skip Reality self-test because REALITY_SELF_TEST=false"
+    return 0
+  fi
+
+  local test_port tmp_cfg tmp_log pid curl_rc
+  test_port="$(select_free_local_port "${REALITY_SELF_TEST_SOCKS_PORT}")"
+  tmp_cfg="$(mktemp /tmp/raylink-reality-self-test.XXXXXX.json)"
+  tmp_log="$(mktemp /tmp/raylink-reality-self-test.XXXXXX.log)"
+
+  cat > "${tmp_cfg}" <<TEST_CONFIG_EOF
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "listen": "127.0.0.1",
+      "port": ${test_port},
+      "protocol": "socks",
+      "settings": {
+        "udp": false
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "proxy",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "127.0.0.1",
+            "port": ${PORT},
+            "users": [
+              {
+                "id": "${UUID}",
+                "encryption": "none",
+                "flow": "${FLOW}"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "${REALITY_SERVER_NAME}",
+          "fingerprint": "${CLIENT_FINGERPRINT}",
+          "publicKey": "${PUBLIC_KEY}",
+          "shortId": "${SHORT_ID}",
+          "spiderX": "/"
+        }
+      }
+    }
+  ]
+}
+TEST_CONFIG_EOF
+
+  "${XRAY_BIN}" run -config "${tmp_cfg}" >"${tmp_log}" 2>&1 &
+  pid="$!"
+  sleep 1
+
+  curl_rc=1
+  if kill -0 "${pid}" >/dev/null 2>&1; then
+    if timeout "$((REALITY_SELF_TEST_TIMEOUT + 5))" \
+      curl -fsS -x "socks5h://127.0.0.1:${test_port}" \
+      -I --connect-timeout "${REALITY_SELF_TEST_TIMEOUT}" \
+      "${REALITY_SELF_TEST_URL}" >/dev/null 2>&1; then
+      curl_rc=0
+    fi
+  fi
+
+  kill "${pid}" >/dev/null 2>&1 || true
+  wait "${pid}" >/dev/null 2>&1 || true
+
+  if [ "${curl_rc}" -eq 0 ]; then
+    rm -f "${tmp_cfg}" "${tmp_log}"
+    return 0
+  fi
+
+  echo "Reality self-test failed for ${REALITY_SERVER_NAME} (${REALITY_DEST}) with fingerprint=${CLIENT_FINGERPRINT}."
+  echo "Self-test client log: ${tmp_log}"
+  tail -n 30 "${tmp_log}" || true
+  rm -f "${tmp_cfg}"
+  return 1
+}
+
+apply_reality_candidate() {
+  local candidate="$1"
+  local cand_dest cand_sni cand_fp rest
+
+  cand_dest="${candidate%%|*}"
+  rest="${candidate#*|}"
+  if [ "${rest}" = "${candidate}" ]; then
+    echo "Warning: skip invalid Reality candidate: ${candidate}"
+    return 1
+  fi
+  cand_sni="${rest%%|*}"
+  cand_fp="${rest##*|}"
+
+  if [ -z "${cand_dest}" ] || [ -z "${cand_sni}" ] || [ -z "${cand_fp}" ]; then
+    echo "Warning: skip incomplete Reality candidate: ${candidate}"
+    return 1
+  fi
+
+  REALITY_DEST="${cand_dest}"
+  REALITY_SERVER_NAME="${cand_sni}"
+  CLIENT_FINGERPRINT="${cand_fp}"
+  normalize_reality_target
+}
+
+restart_xray_with_current_reality_target() {
+  validate_reality_inputs
+  write_xray_config
+  "${XRAY_BIN}" run -test -config "${XRAY_CONFIG}"
+  systemctl restart "${XRAY_SERVICE}"
+  sleep 1
+
+  if ! systemctl is-active --quiet "${XRAY_SERVICE}"; then
+    echo "Xray failed to start after changing Reality target."
+    systemctl status "${XRAY_SERVICE}" --no-pager || true
+    journalctl -u "${XRAY_SERVICE}" -n 80 --no-pager || true
+    return 1
+  fi
+
+  return 0
+}
+
+perform_reality_self_test_with_fallbacks() {
+  if ! is_true "${REALITY_SELF_TEST}"; then
+    echo "Skip Reality self-test because REALITY_SELF_TEST=false"
+    return 0
+  fi
+
+  echo "Running end-to-end Reality self-test: ${REALITY_SELF_TEST_URL}"
+  if run_reality_self_test_once; then
+    echo "Reality self-test passed with target: ${REALITY_SERVER_NAME} (${REALITY_DEST})"
+    save_reality_env
+    return 0
+  fi
+
+  if ! is_true "${REALITY_AUTO_FALLBACK}"; then
+    echo "Reality self-test failed and REALITY_AUTO_FALLBACK=false."
+    exit 1
+  fi
+
+  echo "Trying fallback Reality targets..."
+
+  local original_dest original_sni original_fp candidate candidate_dest
+  original_dest="${REALITY_DEST}"
+  original_sni="${REALITY_SERVER_NAME}"
+  original_fp="${CLIENT_FINGERPRINT}"
+
+  for candidate in ${REALITY_TARGET_CANDIDATES}; do
+    candidate_dest="${candidate%%|*}"
+    if [ "${candidate_dest}" = "${original_dest}" ]; then
+      continue
+    fi
+
+    echo "Trying Reality target candidate: ${candidate}"
+    if ! apply_reality_candidate "${candidate}"; then
+      continue
+    fi
+
+    check_reality_target
+    if restart_xray_with_current_reality_target && run_reality_self_test_once; then
+      echo "Selected working Reality target: ${REALITY_SERVER_NAME} (${REALITY_DEST}), fingerprint=${CLIENT_FINGERPRINT}"
+      save_reality_env
+      return 0
+    fi
+  done
+
+  REALITY_DEST="${original_dest}"
+  REALITY_SERVER_NAME="${original_sni}"
+  CLIENT_FINGERPRINT="${original_fp}"
+  echo "Error: all Reality target candidates failed the end-to-end self-test."
+  echo "Try setting REALITY_DEST / REALITY_SERVER_NAME / CLIENT_FINGERPRINT manually."
+  exit 1
+}
+
 write_clash_config() {
   local TFO_YAML_VALUE="false"
   if is_true "${ENABLE_TFO}"; then
@@ -1214,7 +1438,10 @@ if ! systemctl is-active --quiet "${XRAY_SERVICE}"; then
   exit 1
 fi
 
-echo "[10/11] Generating Mihomo/Clash config and VLESS URI-list subscription..."
+echo "[10/12] Running Reality self-test and fallback target selection..."
+perform_reality_self_test_with_fallbacks
+
+echo "[11/12] Generating Mihomo/Clash config and VLESS URI-list subscription..."
 write_clash_config
 
 URLENCODED_NODE_NAME="$(urlencode "${NODE_NAME}")"
@@ -1225,7 +1452,7 @@ chmod 644 "${VLESS_FILE}"
 # Build URI-list subscription (Base64) — must happen after VLESS_URI is assembled.
 write_uri_list_sub
 
-echo "[11/11] Configuring optional HTTP subscription hosting..."
+echo "[12/12] Configuring optional HTTP subscription hosting..."
 SUBSCRIPTION_URL_UNIVERSAL=""
 SUBSCRIPTION_URL_CLASH=""
 SUBSCRIPTION_URL_VLESS=""
@@ -1261,6 +1488,8 @@ Public key: ${PUBLIC_KEY}
 Short ID: ${SHORT_ID}
 Reality dest: ${REALITY_DEST}
 Reality target check: ${CHECK_REALITY_TARGET}
+Reality self-test: ${REALITY_SELF_TEST}
+Reality auto fallback: ${REALITY_AUTO_FALLBACK}
 Reality check log: ${REALITY_CHECK_LOG}
 
 VLESS link (direct import / troubleshooting):
@@ -1337,7 +1566,7 @@ fi
 echo ""
 echo "Important: allow TCP ${PORT} in your cloud firewall/security group."
 echo "Reality over TCP does not need UDP ${PORT}."
-echo "TCP Fast Open: ${ENABLE_TFO}. Set ENABLE_TFO=false if you encounter compatibility issues."
+echo "TCP Fast Open: ${ENABLE_TFO}. Set ENABLE_TFO=true if your client and network path support it."
 if is_true "${ENABLE_SUBSCRIPTION}"; then
   echo "Important: allow TCP ${SUB_PORT} if you want to access the subscription URLs from outside."
   echo "Plain HTTP subscription warning: use only on trusted networks, or restrict ${SUB_PORT} by firewall/source IP."
