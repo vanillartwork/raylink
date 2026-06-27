@@ -865,14 +865,14 @@ write_xray_config() {
         "decryption": "none"
       },
       "streamSettings": {
-        "network": "tcp",
+        "network": "raw",
         "security": "reality",
         "sockopt": {
           "tcpFastOpen": ${TFO_JSON_VALUE}
         },
         "realitySettings": {
           "show": false,
-          "dest": "${REALITY_DEST}",
+          "target": "${REALITY_DEST}",
           "xver": 0,
           "serverNames": [
             "${REALITY_SERVER_NAME}"
@@ -977,12 +977,12 @@ run_reality_self_test_once() {
         ]
       },
       "streamSettings": {
-        "network": "tcp",
+        "network": "raw",
         "security": "reality",
         "realitySettings": {
           "serverName": "${REALITY_SERVER_NAME}",
           "fingerprint": "${CLIENT_FINGERPRINT}",
-          "publicKey": "${PUBLIC_KEY}",
+          "password": "${PUBLIC_KEY}",
           "shortId": "${SHORT_ID}",
           "spiderX": "/"
         }
