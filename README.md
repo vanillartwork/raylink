@@ -22,17 +22,15 @@ Use this project only for legal and compliant network access. Cloud servers and 
 
 | Item | Default |
 |---|---|
-| Xray protocol | VLESS Reality |
-| Transport | TCP |
 | Node port | `443` |
-| HTTP subscription | Yes, enabled by default |
 | Subscription port | `8080` |
 | Install directory | `/opt/cloud-xray-terminal` |
 | Xray config | `/usr/local/etc/xray/config.json` |
 | Xray service | `xray.service` |
 | Service user | `xray:xray` |
-| TCP Fast Open | No, disabled by default |
-| Reality self-test | Yes, enabled by default |
+| HTTP subscription | `true` |
+| TCP Fast Open | `false` |
+| Reality self-test | `true` |
 
 Traffic path:
 
@@ -512,17 +510,15 @@ terminal.sh
 
 | 项目 | 默认值 |
 |---|---|
-| Xray 协议 | VLESS Reality |
-| 传输方式 | TCP |
 | 节点端口 | `443` |
-| HTTP 订阅 | 是，默认开启 |
 | 订阅端口 | `8080` |
 | 安装目录 | `/opt/cloud-xray-terminal` |
 | Xray 配置 | `/usr/local/etc/xray/config.json` |
 | Xray 服务 | `xray.service` |
 | 服务用户 | `xray:xray` |
-| TCP Fast Open | 否，默认关闭 |
-| Reality 本机自测 | 是，默认开启 |
+| HTTP 订阅 | `true` |
+| TCP Fast Open | `false` |
+| Reality 本机自测 | `true` |
 
 流量路径：
 
