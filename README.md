@@ -28,8 +28,6 @@ Use this project only for legal and compliant network access. Cloud servers and 
 | Xray config | `/usr/local/etc/xray/config.json` |
 | Xray service | `xray.service` |
 | Service user | `xray:xray` |
-| Xray protocol | `VLESS + Reality` |
-| Xray transport | `raw` in Xray JSON; `tcp` in Clash/URI import formats |
 | Flow | `xtls-rprx-vision` |
 | HTTP subscription | `true` |
 | TCP Fast Open | `false` |
@@ -646,8 +644,6 @@ terminal.sh
 | Xray 配置 | `/usr/local/etc/xray/config.json` |
 | Xray 服务 | `xray.service` |
 | 服务用户 | `xray:xray` |
-| Xray 协议 | `VLESS + Reality` |
-| Xray 传输 | Xray JSON 中为 `raw`；Clash/URI 导入格式中为 `tcp` |
 | Flow | `xtls-rprx-vision` |
 | HTTP 订阅 | `true` |
 | TCP Fast Open | `false` |
