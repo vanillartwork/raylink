@@ -33,7 +33,6 @@ Use this project only for legal and compliant network access. Cloud servers and 
 | Reality self-test | `true` |
 | Reality auto fallback | `true` |
 | Periodic health check timer | `true` |
-| Health check schedule | `daily` with `30min` randomized delay |
 
 Traffic path:
 
@@ -54,7 +53,7 @@ You can use AWS EC2, Google Cloud, Oracle Cloud, Azure, or a normal VPS provider
 Recommended AMI:
 
 ```text
-Ubuntu Server 24.04 LTS or Ubuntu Server 26.04 LTS
+Ubuntu Server 26.04 LTS
 ```
 
 Recommended instance type for light personal use:
@@ -628,7 +627,6 @@ terminal.sh
 | Reality 本机自测 | `true` |
 | Reality 自动 fallback | `true` |
 | 定期自检 timer | `true` |
-| 自检计划 | `daily`，随机延迟 `30min` |
 
 流量路径：
 
@@ -649,7 +647,7 @@ terminal.sh
 推荐系统镜像：
 
 ```text
-Ubuntu Server 24.04 LTS 或 Ubuntu Server 26.04 LTS
+Ubuntu Server 26.04 LTS
 ```
 
 个人轻量使用可以选择：
