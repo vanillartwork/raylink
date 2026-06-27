@@ -1,22 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generic Xray VLESS Reality terminal node (hardened) with HTTP multi-format subscription hosting enabled by default.
-# Features:
-# - VLESS Reality terminal node
-# - HTTP subscription hosting through nginx (enabled by default; set ENABLE_SUBSCRIPTION=false to disable)
-#   /sub/{TOKEN}             → Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket)
-#   /sub/{TOKEN}/clash.yaml  → Mihomo / Clash Meta / FlClash / Clash Verge Rev
-#   /sub/{TOKEN}/vless       → legacy compatibility alias for URI-list
-#   /sub/{TOKEN}/vless.txt   → plain text, browser-friendly
-# - Persistent UUID / Reality keys / shortId / client fingerprint
-# - Public IPv4 auto detection with private-range filtering
-# - Reality target TLS 1.3 sanity check
-# - Basic TCP tuning for small VPS instances
-# - Purpose-oriented DNS profiles for generated client YAML
-# - Optional TCP Fast Open for Xray and Mihomo/Clash client config
-# - Hardened systemd service (CAP_NET_BIND_SERVICE, NoNewPrivileges, ProtectSystem)
-# - Safe env-file parsing (no source), subscription rate limiting
+# RayLink terminal installer.
+# Change defaults here or pass values with: sudo env KEY=value bash terminal_realityv.sh
 
 PORT="${PORT:-443}"
 NODE_NAME="${NODE_NAME:-Terminal-Reality}"
@@ -30,58 +16,45 @@ XRAY_SERVICE_USER="${XRAY_SERVICE_USER:-xray}"
 XRAY_SERVICE_GROUP="${XRAY_SERVICE_GROUP:-xray}"
 LISTEN_ADDRESS="${LISTEN_ADDRESS:-0.0.0.0}"
 
+# Generated files.
 CLASH_FILE="${INSTALL_DIR}/clash.yaml"
 INFO_FILE="${INSTALL_DIR}/server-info.txt"
 VLESS_FILE="${INSTALL_DIR}/vless-uri.txt"
-VLESS_URI_LIST_FILE="${INSTALL_DIR}/vless-uri-list"   # base64-encoded URI list for v2rayN/Hiddify/Shadowrocket
+VLESS_URI_LIST_FILE="${INSTALL_DIR}/vless-uri-list"
 REALITY_ENV_FILE="${INSTALL_DIR}/reality.env"
 
-# Reality settings.
-# REALITY_SERVER_NAME should usually match the host part of REALITY_DEST.
-# If these are left empty, saved values from ${REALITY_ENV_FILE} will be reused.
-# If no saved values exist, defaults below will be used.
+# Reality endpoint settings. Saved values are reused from REALITY_ENV_FILE unless overridden.
 REALITY_DEST="${REALITY_DEST:-}"
 REALITY_SERVER_NAME="${REALITY_SERVER_NAME:-}"
 CLIENT_FINGERPRINT="${CLIENT_FINGERPRINT:-}"
 CLIENT_FINGERPRINT_POOL="${CLIENT_FINGERPRINT_POOL:-chrome}"
 FLOW="${FLOW:-}"
 
-# TCP Fast Open. Disabled by default for better compatibility. Set ENABLE_TFO=true if your client and network path support it.
+# TCP Fast Open toggle for Xray and generated client config.
 ENABLE_TFO="${ENABLE_TFO:-false}"
 
-# DNS profile for generated Mihomo/Clash YAML.
-# The best DNS choice depends mainly on the sites you intend to visit, not only on VPS location.
-# - mixed: default. General-purpose profile: foreign/global DNS by default, domestic DNS only for geosite:cn/private.
-# - foreign: overseas node for mostly foreign/global websites.
-# - domestic: return-home / China-oriented node for mostly Chinese websites.
-# - minimal: compatibility-first redir-host DNS.
-# - auto: optional legacy mode; choose domestic for selected server countries, otherwise foreign.
+# DNS profile used when writing the generated Mihomo/Clash YAML.
 DNS_PROFILE="${DNS_PROFILE:-mixed}"
 AUTO_DNS_DOMESTIC_COUNTRIES="${AUTO_DNS_DOMESTIC_COUNTRIES:-${AUTO_DNS_RETURN_COUNTRIES:-CN}}"
 SERVER_COUNTRY="${SERVER_COUNTRY:-}"
 DNS_DETECTED_COUNTRY=""
 DNS_EFFECTIVE_PROFILE=""
 
-# Check the target site with openssl s_client -tls1_3 before writing config.
-# The check is non-fatal by default. Set REALITY_CHECK_STRICT=true to fail on check failure.
+# Basic TLS probe for the selected Reality target.
 CHECK_REALITY_TARGET="${CHECK_REALITY_TARGET:-true}"
 REALITY_CHECK_STRICT="${REALITY_CHECK_STRICT:-false}"
 REALITY_CHECK_LOG="${REALITY_CHECK_LOG:-/tmp/reality_target_check.log}"
 
-# End-to-end Reality self-test. This starts a temporary local Xray SOCKS client on
-# the server and connects back to the local Reality inbound. It catches cases where
-# a target passes a simple TLS check but fails a real Reality handshake.
+# End-to-end local Reality self-test and fallback target selection.
 REALITY_SELF_TEST="${REALITY_SELF_TEST:-true}"
 REALITY_SELF_TEST_URL="${REALITY_SELF_TEST_URL:-http://example.com}"
 REALITY_SELF_TEST_TIMEOUT="${REALITY_SELF_TEST_TIMEOUT:-10}"
 REALITY_SELF_TEST_SOCKS_PORT="${REALITY_SELF_TEST_SOCKS_PORT:-10808}"
 REALITY_AUTO_FALLBACK="${REALITY_AUTO_FALLBACK:-true}"
-# Format: dest|serverName|clientFingerprint separated by spaces.
-# Put the proven/currently most reliable candidates first.
+# Candidate format: dest|serverName|clientFingerprint, separated by spaces.
 REALITY_TARGET_CANDIDATES="${REALITY_TARGET_CANDIDATES:-www.cloudflare.com:443|www.cloudflare.com|chrome www.apple.com:443|www.apple.com|safari addons.mozilla.org:443|addons.mozilla.org|firefox www.speedtest.net:443|www.speedtest.net|chrome www.microsoft.com:443|www.microsoft.com|chrome}"
 
-# Clash/Mihomo subscription hosting. Enabled by default.
-# Set ENABLE_SUBSCRIPTION=false to disable and remove this script's managed nginx site link.
+# HTTP subscription hosting through nginx.
 ENABLE_SUBSCRIPTION="${ENABLE_SUBSCRIPTION:-true}"
 SUB_PORT="${SUB_PORT:-8080}"
 SUB_TOKEN="${SUB_TOKEN:-}"
@@ -93,7 +66,7 @@ RESET_SUB_TOKEN="${RESET_SUB_TOKEN:-false}"
 SUB_RATE_LIMIT="${SUB_RATE_LIMIT:-30r/m}"
 SUB_RATE_BURST="${SUB_RATE_BURST:-10}"
 
-# Credential/key reuse. Leave as default to keep client configs stable across reruns.
+# Credential/key reset switch.
 RESET_REALITY_CREDENTIALS="${RESET_REALITY_CREDENTIALS:-false}"
 UUID="${UUID:-}"
 PRIVATE_KEY="${PRIVATE_KEY:-}"
@@ -124,7 +97,7 @@ valid_public_ipv4() {
   valid_ipv4 "${ip}" || return 1
   IFS=. read -r a b c d <<< "${ip}"
 
-  # Filter non-public ranges: RFC1918, loopback, link-local, CGNAT, documentation, benchmark, multicast/reserved.
+  # Reject private, reserved, and non-routable IPv4 ranges.
   [ "${a}" -eq 0 ] && return 1
   [ "${a}" -eq 10 ] && return 1
   [ "${a}" -eq 127 ] && return 1
@@ -156,7 +129,7 @@ install_required_packages() {
   command -v useradd >/dev/null 2>&1 || packages+=(passwd)
   command -v groupadd >/dev/null 2>&1 || packages+=(passwd)
 
-  # nginx is needed only when HTTP subscription hosting is enabled.
+  # Install nginx only when subscription hosting is enabled.
   if is_true "${ENABLE_SUBSCRIPTION}"; then
     command -v nginx >/dev/null 2>&1 || packages+=(nginx)
   fi
@@ -535,10 +508,7 @@ load_kv_file_var() {
     return 0
   }
 
-  # Safe key=value parser. It never sources the file and preserves every
-  # character after the first '='. Older buggy versions could repeatedly wrap
-  # saved values in quotes on each rerun, so matching outer quote pairs are
-  # removed repeatedly to repair those files automatically.
+  # Parse key=value files without sourcing them.
   awk -v key="${key}" '
     BEGIN {
       sq = sprintf("%c", 39)
@@ -578,7 +548,7 @@ write_kv_env_file() {
     local key="$1"
     local value="$2"
     shift 2
-    # Values generated by this script are token-like. If users pass unusual values, keep them literal.
+    # Values are written literally; callers should pass token-like values.
     printf "%s='%s'\n" "${key}" "${value}" >> "${file}"
   done
   chmod 600 "${file}"
@@ -667,7 +637,7 @@ load_or_generate_reality_credentials() {
     rm -f "${REALITY_ENV_FILE}"
   fi
 
-  # Do not source ${REALITY_ENV_FILE}. It is parsed as key=value text to avoid executing modified content.
+  # Never source REALITY_ENV_FILE; read it as plain key=value text.
   if [ -f "${REALITY_ENV_FILE}" ]; then
     UUID="${UUID:-$(load_kv_file_var "${REALITY_ENV_FILE}" UUID)}"
     PRIVATE_KEY="${PRIVATE_KEY:-$(load_kv_file_var "${REALITY_ENV_FILE}" PRIVATE_KEY)}"
@@ -679,7 +649,7 @@ load_or_generate_reality_credentials() {
     FLOW="${FLOW:-$(load_kv_file_var "${REALITY_ENV_FILE}" FLOW)}"
   fi
 
-  # Explicit environment variables from this run should override saved values.
+  # Environment variables from this run take priority over saved values.
   [ -n "${input_uuid}" ] && UUID="${input_uuid}"
   [ -n "${input_private_key}" ] && PRIVATE_KEY="${input_private_key}"
   [ -n "${input_public_key}" ] && PUBLIC_KEY="${input_public_key}"
@@ -707,12 +677,7 @@ load_or_generate_reality_credentials() {
     local keypair
     keypair="$(${XRAY_BIN} x25519)"
 
-    # Known xray x25519 outputs:
-    #   Private key: xxx
-    #   Public key: xxx
-    #   PrivateKey: xxx
-    #   Password (PublicKey): xxx
-    #   Hash32: xxx
+    # Parse both old and new xray x25519 output labels.
     PRIVATE_KEY="$(printf '%s\n' "${keypair}" | awk -F':[[:space:]]*' 'tolower($1) ~ /^private[[:space:]]*key$/ || tolower($1) ~ /^privatekey$/ {print $2; exit}' | tr -d ' \r\n\t')"
     PUBLIC_KEY="$(printf '%s\n' "${keypair}" | awk -F':[[:space:]]*' 'tolower($1) ~ /^public[[:space:]]*key$/ || tolower($1) ~ /^publickey$/ || tolower($1) ~ /^password[[:space:]]*\(publickey\)$/ {print $2; exit}' | tr -d ' \r\n\t')"
 
@@ -779,8 +744,7 @@ validate_reality_inputs() {
     exit 1
   fi
 
-  # SHORT_ID can technically be empty in Xray Reality, but this script generates
-  # a 16-hex shortId by default for clearer client configuration.
+  # Use a generated shortId unless one was provided.
   if ! printf '%s' "${SHORT_ID}" | grep -Eq '^[A-Fa-f0-9]{0,16}$'; then
     echo "Error: SHORT_ID must be hex and at most 16 characters, got: ${SHORT_ID}"
     exit 1
@@ -1190,13 +1154,9 @@ CLASH_EOF
   chmod 644 "${CLASH_FILE}"
 }
 
-# Generate a Base64-encoded URI list subscription for v2rayN / v2rayNG / Hiddify / Shadowrocket.
-# Format: base64( "vless://...\n" )  — one URI per line before encoding.
-# When additional protocols (SS, Trojan) are added in the future, append their URIs to the
-# here-doc below before encoding. That is the canonical "universal subscription" format.
+# Write the base64 URI-list subscription file.
 write_uri_list_sub() {
-  # One URI per line before Base64 encoding. The trailing newline after the Base64
-  # blob is required by some clients.
+  # Keep the trailing newline for clients that expect text subscriptions.
   printf '%s\n' "${VLESS_URI}" | base64_one_line > "${VLESS_URI_LIST_FILE}"
   printf '\n' >> "${VLESS_URI_LIST_FILE}"
   chmod 644 "${VLESS_URI_LIST_FILE}"
@@ -1257,10 +1217,10 @@ configure_subscription() {
   SUB_DIR="${SUB_ROOT}/sub/${SUB_TOKEN}"
   SUBSCRIPTION_URL_UNIVERSAL="http://${PUBLIC_IP}:${SUB_PORT}/sub/${SUB_TOKEN}"
   SUBSCRIPTION_URL_CLASH="http://${PUBLIC_IP}:${SUB_PORT}/sub/${SUB_TOKEN}/clash.yaml"
-  # Legacy compatibility URL; kept in subscription.env but not highlighted in output.
+  # Legacy alias kept in subscription.env.
   SUBSCRIPTION_URL_VLESS="http://${PUBLIC_IP}:${SUB_PORT}/sub/${SUB_TOKEN}/vless"
 
-  # Clean up orphaned token directory from a previous run if the token changed.
+  # Remove the old token directory when the token changes.
   if [ -n "${old_token}" ] && [ "${old_token}" != "${SUB_TOKEN}" ]; then
     if validate_subscription_token "${old_token}"; then
       old_dir="${SUB_ROOT}/sub/${old_token}"
@@ -1272,16 +1232,15 @@ configure_subscription() {
 
   mkdir -p "${SUB_DIR}"
 
-  # clash.yaml — Mihomo / Clash Meta / FlClash / Clash Verge Rev
+  # Mihomo/Clash subscription file.
   cp "${CLASH_FILE}" "${SUB_DIR}/clash.yaml"
   chmod 644 "${SUB_DIR}/clash.yaml"
 
-  # vless — Base64 URI list for v2rayN / v2rayNG / Hiddify / Shadowrocket.
-  # This file is also exposed as /sub/TOKEN through nginx rewrite/try_files.
+  # Universal URI-list endpoint.
   cp "${VLESS_URI_LIST_FILE}" "${SUB_DIR}/vless"
   chmod 644 "${SUB_DIR}/vless"
 
-  # vless.txt — legacy/browser-friendly path; kept for compatibility, not highlighted in output.
+  # Plain-text compatible alias.
   cp "${VLESS_URI_LIST_FILE}" "${SUB_DIR}/vless.txt"
   chmod 644 "${SUB_DIR}/vless.txt"
 
@@ -1295,8 +1254,7 @@ configure_subscription() {
     SUBSCRIPTION_URL_VLESS "${SUBSCRIPTION_URL_VLESS}"
 
   cat > "${NGINX_SITE}" <<NGINX_EOF
-# This managed site file is overwritten on each run, so the rate-limit zone
-# is defined only once inside this nginx include file.
+# Managed nginx site; overwritten on each run.
 limit_req_zone \$binary_remote_addr zone=cloud_xray_sub_limit:10m rate=${SUB_RATE_LIMIT};
 
 server {
@@ -1306,7 +1264,6 @@ server {
     root ${SUB_ROOT};
     autoindex off;
 
-    # Universal URI-list subscription:
     # /sub/{TOKEN} -> /sub/{TOKEN}/vless
     location ~ "^/sub/[A-Za-z0-9_-]{24,128}$" {
         limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
@@ -1317,7 +1274,7 @@ server {
         add_header Cache-Control "no-store" always;
     }
 
-    # Clash YAML subscription
+    # Clash YAML endpoint.
     location ~* /clash\.yaml$ {
         limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
         try_files \$uri =404;
@@ -1326,7 +1283,7 @@ server {
         add_header Cache-Control "no-store" always;
     }
 
-    # Legacy URI-list endpoint kept for compatibility.
+    # Legacy URI-list endpoint.
     location ~* /vless$ {
         limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
         try_files \$uri =404;
@@ -1336,7 +1293,7 @@ server {
         add_header Cache-Control "no-store" always;
     }
 
-    # Same URI-list content, easier to open or inspect in a browser.
+    # Browser-readable URI-list alias.
     location ~* /vless\.txt$ {
         limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
         try_files \$uri =404;
@@ -1345,7 +1302,7 @@ server {
         add_header Cache-Control "no-store" always;
     }
 
-    # Deny hidden files and anything else not matched above.
+    # Block hidden files.
     location ~ /\. {
         deny all;
     }
@@ -1462,7 +1419,7 @@ VLESS_URI="vless://${UUID}@${PUBLIC_IP}:${PORT}?encryption=none&security=reality
 printf '%s\n' "${VLESS_URI}" > "${VLESS_FILE}"
 chmod 644 "${VLESS_FILE}"
 
-# Build URI-list subscription (Base64) — must happen after VLESS_URI is assembled.
+# Build URI-list after VLESS_URI is assembled.
 write_uri_list_sub
 
 echo "[12/12] Configuring optional HTTP subscription hosting..."
@@ -1586,9 +1543,7 @@ if is_true "${ENABLE_SUBSCRIPTION}"; then
   echo "Do not publish the subscription URLs publicly; they contain your client config."
 fi
 
-# Direct import link is saved in both ${INFO_FILE} and ${VLESS_FILE},
-# but is not printed directly to the terminal by default.
-# Subscription URLs are preferred for regular use.
+# Keep the direct import link in files only; print subscription URLs instead.
 if is_true "${ENABLE_SUBSCRIPTION}"; then
   echo ""
   echo "Subscription URLs:"
