@@ -94,8 +94,8 @@ ENABLE_HEALTHCHECK_TIMER="${ENABLE_HEALTHCHECK_TIMER:-true}"
 HEALTHCHECK_SCRIPT="${HEALTHCHECK_SCRIPT:-/usr/local/bin/raylink-terminal.sh}"
 HEALTHCHECK_SCRIPT_URL="${HEALTHCHECK_SCRIPT_URL:-https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh}"
 HEALTHCHECK_ENV_FILE="${HEALTHCHECK_ENV_FILE:-/etc/raylink-terminal-healthcheck.env}"
-HEALTHCHECK_ON_CALENDAR="${HEALTHCHECK_ON_CALENDAR:-daily}"
-HEALTHCHECK_RANDOMIZED_DELAY="${HEALTHCHECK_RANDOMIZED_DELAY:-30min}"
+HEALTHCHECK_ON_BOOT_SEC="${HEALTHCHECK_ON_BOOT_SEC:-10min}"
+HEALTHCHECK_ON_UNIT_ACTIVE_SEC="${HEALTHCHECK_ON_UNIT_ACTIVE_SEC:-24h}"
 HEALTHCHECK_SERVICE_NAME="${HEALTHCHECK_SERVICE_NAME:-raylink-terminal-healthcheck.service}"
 HEALTHCHECK_TIMER_NAME="${HEALTHCHECK_TIMER_NAME:-raylink-terminal-healthcheck.timer}"
 
@@ -1631,9 +1631,9 @@ SERVICE_EOF
 Description=Run RayLink terminal Reality health check periodically
 
 [Timer]
-OnCalendar=${HEALTHCHECK_ON_CALENDAR}
-RandomizedDelaySec=${HEALTHCHECK_RANDOMIZED_DELAY}
-Persistent=true
+OnBootSec=${HEALTHCHECK_ON_BOOT_SEC}
+OnUnitActiveSec=${HEALTHCHECK_ON_UNIT_ACTIVE_SEC}
+Unit=${HEALTHCHECK_SERVICE_NAME}
 
 [Install]
 WantedBy=timers.target
@@ -1641,7 +1641,7 @@ TIMER_EOF
 
   systemctl daemon-reload
   systemctl enable --now "${HEALTHCHECK_TIMER_NAME}" >/dev/null 2>&1 || true
-  echo "Health check timer enabled: ${HEALTHCHECK_TIMER_NAME} (${HEALTHCHECK_ON_CALENDAR}, randomized delay ${HEALTHCHECK_RANDOMIZED_DELAY})"
+  echo "Health check timer enabled: ${HEALTHCHECK_TIMER_NAME} (boot delay ${HEALTHCHECK_ON_BOOT_SEC}, interval ${HEALTHCHECK_ON_UNIT_ACTIVE_SEC})"
 }
 
 run_healthcheck_mode() {
