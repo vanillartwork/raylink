@@ -14,7 +14,7 @@ This README covers the terminal node installer:
 terminal.sh
 ```
 
-The script installs Xray, creates a systemd service, generates persistent VLESS Reality credentials, optionally publishes subscription files through nginx, and runs a local Reality self-test before printing the client import information.
+The script installs Xray, creates a systemd service, generates persistent VLESS Reality credentials, optionally publishes subscription files through nginx, runs a local Reality self-test before printing the client import information, and can install a lightweight periodic health check timer.
 
 Use this project only for legal and compliant network access. Cloud servers and data transfer may incur charges.
 
@@ -31,6 +31,9 @@ Use this project only for legal and compliant network access. Cloud servers and 
 | HTTP subscription | `true` |
 | TCP Fast Open | `false` |
 | Reality self-test | `true` |
+| Reality auto fallback | `true` |
+| Periodic health check timer | `true` |
+| Health check schedule | `daily` with `30min` randomized delay |
 
 Traffic path:
 
@@ -174,6 +177,10 @@ Common files:
 /opt/cloud-xray-terminal/subscription.env
 /opt/cloud-xray-terminal/public/
 /usr/local/etc/xray/config.json
+/usr/local/bin/raylink-terminal.sh
+/etc/raylink-terminal-healthcheck.env
+/etc/systemd/system/raylink-terminal-healthcheck.service
+/etc/systemd/system/raylink-terminal-healthcheck.timer
 ```
 
 Useful commands:
@@ -249,6 +256,32 @@ CLIENT_FINGERPRINT=chrome \
 bash
 ```
 
+### Disable the periodic health check timer
+
+The full installer enables a lightweight systemd timer by default. To skip installing the timer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env ENABLE_HEALTHCHECK_TIMER=false bash
+```
+
+### Change the health check schedule
+
+The default health check schedule is `daily` with a randomized delay of `30min`. You can change it with systemd timer values:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
+HEALTHCHECK_ON_CALENDAR='*-*-* 04:00:00' \
+HEALTHCHECK_RANDOMIZED_DELAY=30min \
+bash
+```
+
+You can also manually run one health check after installation:
+
+```bash
+sudo /usr/local/bin/raylink-terminal.sh --health-check
+```
+
+
 ## Reality self-test and fallback
 
 Reality depends on a suitable TLS target. A target may pass a simple TLS check but still fail a real Reality handshake.
@@ -288,6 +321,53 @@ Disable self-test only when you know what you are doing:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env REALITY_SELF_TEST=false bash
+```
+
+## Periodic health check
+
+By default, the full installer places a local copy of the script at:
+
+```text
+/usr/local/bin/raylink-terminal.sh
+```
+
+and installs a systemd timer:
+
+```text
+raylink-terminal-healthcheck.timer
+```
+
+The timer runs the lightweight health check mode:
+
+```bash
+sudo /usr/local/bin/raylink-terminal.sh --health-check
+```
+
+The health check does not run the full installer. It does not update apt packages, reinstall Xray, reset credentials, or reset the subscription token. It only uses the saved node state to check and repair runtime output when needed.
+
+During each health check, the script:
+
+1. Detects the current public IPv4.
+2. Loads existing Reality credentials and subscription settings.
+3. Checks whether Xray is running.
+4. Runs the local end-to-end Reality self-test.
+5. If the current target fails, tries the fallback target candidates.
+6. If a new target works, saves it, rewrites the Xray config, restarts Xray, and regenerates client files and subscription files.
+7. If all targets fail, keeps the original target and existing subscription files, writes logs, and exits with failure so `journalctl` can show the failed health check.
+
+If the server public IP changes, the health check will regenerate `clash.yaml`, `vless-uri.txt`, `vless-uri-list`, `server-info.txt`, and the files served under the subscription directory. However, if your subscription URL itself uses the old raw IP, the client still needs the subscription URL updated to the new IP. To avoid this, use a static IP or a domain name.
+
+Check the timer status:
+
+```bash
+sudo systemctl list-timers | grep raylink || true
+sudo systemctl status raylink-terminal-healthcheck.timer --no-pager
+```
+
+View health check logs:
+
+```bash
+sudo journalctl -u raylink-terminal-healthcheck.service -n 80 --no-pager
 ```
 
 ## DNS profiles for generated Clash YAML
@@ -345,6 +425,25 @@ View recent logs:
 
 ```bash
 sudo journalctl -u xray -n 80 --no-pager
+```
+
+Check the health check timer:
+
+```bash
+sudo systemctl status raylink-terminal-healthcheck.timer --no-pager
+sudo systemctl list-timers | grep raylink || true
+```
+
+Run the health check manually:
+
+```bash
+sudo /usr/local/bin/raylink-terminal.sh --health-check
+```
+
+View health check logs:
+
+```bash
+sudo journalctl -u raylink-terminal-healthcheck.service -n 80 --no-pager
 ```
 
 Restart Xray:
@@ -427,19 +526,27 @@ Then update or re-import the subscription in your client.
 
 If the server uses an auto-assigned public IP, the IP may change after stopping and starting the instance.
 
-Check the cloud console for the current public IPv4 address. Re-run the script to regenerate subscriptions with the new IP:
+The periodic health check detects the current public IPv4 and regenerates local client files and subscription files with the new IP. You can also run it manually:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
+sudo /usr/local/bin/raylink-terminal.sh --health-check
 ```
 
-To avoid this issue, use a static IP such as AWS Elastic IP or your provider's equivalent.
+If your client subscription URL uses the old raw IP, you still need to edit the subscription URL in the client to use the new IP. The subscription token normally stays the same, so only the IP part of the URL changes.
+
+To avoid this issue, use a static IP such as AWS Elastic IP, your provider's equivalent, or a domain name.
 
 ## Uninstall
 
-Stop and disable Xray:
+Stop and disable the health check timer and Xray:
 
 ```bash
+sudo systemctl disable --now raylink-terminal-healthcheck.timer 2>/dev/null || true
+sudo rm -f /etc/systemd/system/raylink-terminal-healthcheck.timer
+sudo rm -f /etc/systemd/system/raylink-terminal-healthcheck.service
+sudo rm -f /etc/raylink-terminal-healthcheck.env
+sudo rm -f /usr/local/bin/raylink-terminal.sh
+
 sudo systemctl disable --now xray
 sudo rm -f /etc/systemd/system/xray.service
 sudo systemctl daemon-reload
@@ -502,7 +609,7 @@ RayLink 是一个用于在 Linux 服务器上一键部署 Xray 个人 VPN 节点
 terminal.sh
 ```
 
-脚本会安装 Xray，创建 systemd 服务，生成并保存 VLESS Reality 连接参数，根据需要通过 nginx 提供订阅链接，并在输出客户端配置前执行本机 Reality 自测。
+脚本会安装 Xray，创建 systemd 服务，生成并保存 VLESS Reality 连接参数，根据需要通过 nginx 提供订阅链接，在输出客户端配置前执行本机 Reality 自测，并可以安装一个轻量级定期自检 timer。
 
 请仅用于合法、合规的网络访问。云服务器和流量可能产生费用，请注意账单。
 
@@ -519,6 +626,9 @@ terminal.sh
 | HTTP 订阅 | `true` |
 | TCP Fast Open | `false` |
 | Reality 本机自测 | `true` |
+| Reality 自动 fallback | `true` |
+| 定期自检 timer | `true` |
+| 自检计划 | `daily`，随机延迟 `30min` |
 
 流量路径：
 
@@ -662,6 +772,10 @@ sudo cat /opt/cloud-xray-terminal/vless-uri.txt
 /opt/cloud-xray-terminal/subscription.env
 /opt/cloud-xray-terminal/public/
 /usr/local/etc/xray/config.json
+/usr/local/bin/raylink-terminal.sh
+/etc/raylink-terminal-healthcheck.env
+/etc/systemd/system/raylink-terminal-healthcheck.service
+/etc/systemd/system/raylink-terminal-healthcheck.timer
 ```
 
 常用查看命令：
@@ -739,6 +853,32 @@ CLIENT_FINGERPRINT=chrome \
 bash
 ```
 
+### 关闭定期自检 timer
+
+完整安装默认会启用一个轻量级 systemd timer。如果不想安装 timer，可以运行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env ENABLE_HEALTHCHECK_TIMER=false bash
+```
+
+### 修改自检计划
+
+默认自检计划是 `daily`，并带有 `30min` 随机延迟。可以用 systemd timer 的时间格式修改：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
+HEALTHCHECK_ON_CALENDAR='*-*-* 04:00:00' \
+HEALTHCHECK_RANDOMIZED_DELAY=30min \
+bash
+```
+
+安装后也可以手动运行一次自检：
+
+```bash
+sudo /usr/local/bin/raylink-terminal.sh --health-check
+```
+
+
 ## Reality 自测和 fallback
 
 Reality 依赖合适的 TLS target。有些 target 可以通过简单 TLS 检查，但真实 Reality 握手仍然失败。
@@ -778,6 +918,53 @@ bash
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env REALITY_SELF_TEST=false bash
+```
+
+## 定期自检
+
+完整安装默认会把脚本的本地副本放在：
+
+```text
+/usr/local/bin/raylink-terminal.sh
+```
+
+并安装一个 systemd timer：
+
+```text
+raylink-terminal-healthcheck.timer
+```
+
+timer 会运行轻量级自检模式：
+
+```bash
+sudo /usr/local/bin/raylink-terminal.sh --health-check
+```
+
+自检模式不是完整安装流程。它不会执行 apt 更新、不会重新安装 Xray、不会重置凭据，也不会重置订阅 token。它只会读取已有节点状态，并在需要时修复运行时配置和客户端输出文件。
+
+每次自检时，脚本会：
+
+1. 检测当前公网 IPv4。
+2. 读取已有 Reality 凭据和订阅设置。
+3. 检查 Xray 是否正在运行。
+4. 执行本机端到端 Reality 自测。
+5. 如果当前 target 失败，尝试 fallback 候选 target。
+6. 如果找到可用 target，保存新 target，重写 Xray 配置，重启 Xray，并重新生成客户端配置和订阅文件。
+7. 如果所有 target 都失败，保留原 target 和现有订阅文件，写入日志，并以失败状态退出，方便通过 `journalctl` 查看。
+
+如果服务器公网 IP 变化，自检会重新生成 `clash.yaml`、`vless-uri.txt`、`vless-uri-list`、`server-info.txt`，以及订阅目录下提供给 nginx 的文件。但是，如果客户端里的订阅 URL 本身使用旧的裸 IP，客户端仍然需要把订阅 URL 改成新的 IP。想避免这个问题，可以使用静态 IP 或域名。
+
+查看 timer 状态：
+
+```bash
+sudo systemctl list-timers | grep raylink || true
+sudo systemctl status raylink-terminal-healthcheck.timer --no-pager
+```
+
+查看自检日志：
+
+```bash
+sudo journalctl -u raylink-terminal-healthcheck.service -n 80 --no-pager
 ```
 
 ## Clash YAML 的 DNS profile
@@ -835,6 +1022,25 @@ sudo systemctl status xray --no-pager
 
 ```bash
 sudo journalctl -u xray -n 80 --no-pager
+```
+
+查看自检 timer：
+
+```bash
+sudo systemctl status raylink-terminal-healthcheck.timer --no-pager
+sudo systemctl list-timers | grep raylink || true
+```
+
+手动运行自检：
+
+```bash
+sudo /usr/local/bin/raylink-terminal.sh --health-check
+```
+
+查看自检日志：
+
+```bash
+sudo journalctl -u raylink-terminal-healthcheck.service -n 80 --no-pager
 ```
 
 重启 Xray：
@@ -917,19 +1123,27 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 如果服务器使用自动分配公网 IP，停止再启动实例后公网 IP 可能变化。
 
-在云平台控制台确认当前 Public IPv4，然后重新运行脚本生成新订阅：
+定期自检会检测当前公网 IPv4，并用新 IP 重新生成本地客户端配置和订阅文件。也可以手动运行一次自检：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
+sudo /usr/local/bin/raylink-terminal.sh --health-check
 ```
 
-为了避免这个问题，可以使用 AWS Elastic IP 或对应云服务商的静态 IP。
+如果客户端里的订阅 URL 使用的是旧的裸 IP，仍然需要在客户端里把订阅 URL 的 IP 改成新 IP。订阅 token 通常不会变化，所以只需要改 URL 里的 IP 部分。
+
+为了避免这个问题，可以使用 AWS Elastic IP、云服务商的静态 IP，或者域名。
 
 ## 卸载
 
-停止并禁用 Xray：
+停止并禁用自检 timer 和 Xray：
 
 ```bash
+sudo systemctl disable --now raylink-terminal-healthcheck.timer 2>/dev/null || true
+sudo rm -f /etc/systemd/system/raylink-terminal-healthcheck.timer
+sudo rm -f /etc/systemd/system/raylink-terminal-healthcheck.service
+sudo rm -f /etc/raylink-terminal-healthcheck.env
+sudo rm -f /usr/local/bin/raylink-terminal.sh
+
 sudo systemctl disable --now xray
 sudo rm -f /etc/systemd/system/xray.service
 sudo systemctl daemon-reload
