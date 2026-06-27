@@ -22,9 +22,6 @@ Use this project only for legal and compliant network access. Cloud servers and 
 
 | Item | Default |
 |---|---|
-| Server | Linux VPS / cloud server |
-| Recommended OS | Ubuntu 22.04 / 24.04 / 26.04 or Debian-like Linux |
-| Node role | Terminal node |
 | Xray protocol | VLESS Reality |
 | Transport | TCP |
 | Node port | `443` |
@@ -515,9 +512,6 @@ terminal.sh
 
 | 项目 | 默认值 |
 |---|---|
-| 服务器 | Linux VPS / 云服务器 |
-| 推荐系统 | Ubuntu 22.04 / 24.04 / 26.04 或 Debian 系 Linux |
-| 节点角色 | Terminal 节点 |
 | Xray 协议 | VLESS Reality |
 | 传输方式 | TCP |
 | 节点端口 | `443` |
@@ -711,7 +705,7 @@ scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]:/opt/clo
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env KEY=value bash
 ```
 
-### 自定义节点端口
+### 自定义节点端口部署
 
 例如使用 `8443` 端口：
 
@@ -721,7 +715,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 记得在安全组/防火墙里开放 TCP `8443`。
 
-### 关闭 HTTP 订阅
+### 关闭 HTTP 订阅部署
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env ENABLE_SUBSCRIPTION=false bash
@@ -729,7 +723,9 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 关闭订阅后，可以使用 `/opt/cloud-xray-terminal/` 里的本地配置文件。
 
-### 修改订阅端口
+### 修改订阅端口部署
+
+例如使用 `18080` 端口：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env SUB_PORT=18080 bash
