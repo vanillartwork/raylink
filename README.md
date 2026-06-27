@@ -28,11 +28,15 @@ Use this project only for legal and compliant network access. Cloud servers and 
 | Xray config | `/usr/local/etc/xray/config.json` |
 | Xray service | `xray.service` |
 | Service user | `xray:xray` |
+| Xray protocol | `VLESS + Reality` |
+| Xray transport | `raw` in Xray JSON; `tcp` in Clash/URI import formats |
+| Flow | `xtls-rprx-vision` |
 | HTTP subscription | `true` |
 | TCP Fast Open | `false` |
 | Reality self-test | `true` |
 | Reality auto fallback | `true` |
 | Periodic health check timer | `true` |
+| Health check schedule | `daily` with `30min` randomized delay |
 
 Traffic path:
 
@@ -53,7 +57,7 @@ You can use AWS EC2, Google Cloud, Oracle Cloud, Azure, or a normal VPS provider
 Recommended AMI:
 
 ```text
-Ubuntu Server 26.04 LTS
+Ubuntu Server 24.04 LTS or Ubuntu Server 26.04 LTS
 ```
 
 Recommended instance type for light personal use:
@@ -62,7 +66,7 @@ Recommended instance type for light personal use:
 t3.micro
 ```
 
-When creating the instance, create or select an SSH key pair. For Windows CMD examples in this README, a `.pem` key is assumed.
+When creating the instance, create or select an SSH key pair. The examples below assume an OpenSSH-compatible terminal and a `.pem` private key file.
 
 ### Security group / firewall
 
@@ -83,23 +87,21 @@ Notes:
 
 ## SSH into the server
 
-This README uses Windows CMD examples.
+Open a local terminal on Windows, macOS, or Linux, then go to the folder where your `.pem` key is saved. For example:
 
-Open CMD and go to the folder where your `.pem` key is saved. For example:
-
-```cmd
-cd %USERPROFILE%\Downloads
+```bash
+cd ~/Downloads
 ```
 
 Use this format:
 
-```cmd
+```bash
 ssh -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]
 ```
 
 Example:
 
-```cmd
+```bash
 ssh -i key.pem ubuntu@192.168.1.1
 ```
 
@@ -193,22 +195,22 @@ sudo cat /opt/cloud-xray-terminal/clash.yaml
 
 ## Download generated config to your computer
 
-From Windows CMD, download the generated Clash YAML to your Downloads folder:
+From a local terminal, download the generated Clash YAML to the current folder:
 
-```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
+```bash
+scp -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/clash.yaml ./raylink-clash.yaml
 ```
 
 Example:
 
-```cmd
-scp -i %USERPROFILE%\Downloads\key.pem ubuntu@192.168.1.1:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
+```bash
+scp -i key.pem ubuntu@192.168.1.1:/opt/cloud-xray-terminal/clash.yaml ./raylink-clash.yaml
 ```
 
 You can also download the direct VLESS link file:
 
-```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-uri.txt %USERPROFILE%\Downloads\vless-uri.txt
+```bash
+scp -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-uri.txt ./vless-uri.txt
 ```
 
 ## Common customization
@@ -321,6 +323,22 @@ Disable self-test only when you know what you are doing:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env REALITY_SELF_TEST=false bash
 ```
+
+### Xray JSON and client import formats
+
+The script follows the current Xray REALITY example for Xray JSON configuration:
+
+- Server inbound uses `settings.clients`.
+- Xray stream network uses `raw`.
+- Server REALITY target uses `realitySettings.target`.
+- The temporary Xray self-test client uses `realitySettings.password` for the public key.
+
+Client import formats are different and intentionally keep their own field names:
+
+- Mihomo/Clash YAML still uses `network: tcp` and `reality-opts.public-key`.
+- The VLESS URI still uses `type=tcp` and `pbk=...`.
+
+This is expected; do not rename Clash YAML or URI fields to the Xray JSON field names.
 
 ## Periodic health check
 
@@ -463,22 +481,29 @@ Test the Xray config:
 sudo /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json
 ```
 
-## Test port connectivity from Windows
+## Test port connectivity from a local terminal
 
-From Windows CMD:
+On macOS or Linux, you can use `nc`:
 
-```cmd
-powershell -Command "Test-NetConnection [SERVER_PUBLIC_IP] -Port 443"
-powershell -Command "Test-NetConnection [SERVER_PUBLIC_IP] -Port 8080"
+```bash
+nc -vz [SERVER_PUBLIC_IP] 443
+nc -vz [SERVER_PUBLIC_IP] 8080
+```
+
+On Windows PowerShell, use:
+
+```powershell
+Test-NetConnection [SERVER_PUBLIC_IP] -Port 443
+Test-NetConnection [SERVER_PUBLIC_IP] -Port 8080
 ```
 
 Example:
 
-```cmd
-powershell -Command "Test-NetConnection 192.168.1.1 -Port 443"
+```bash
+nc -vz 192.168.1.1 443
 ```
 
-If `TcpTestSucceeded` is `False`, check:
+If the test fails, check:
 
 - The server public IPv4 is correct.
 - The firewall/security group allows the port.
@@ -622,11 +647,15 @@ terminal.sh
 | Xray 配置 | `/usr/local/etc/xray/config.json` |
 | Xray 服务 | `xray.service` |
 | 服务用户 | `xray:xray` |
+| Xray 协议 | `VLESS + Reality` |
+| Xray 传输 | Xray JSON 中为 `raw`；Clash/URI 导入格式中为 `tcp` |
+| Flow | `xtls-rprx-vision` |
 | HTTP 订阅 | `true` |
 | TCP Fast Open | `false` |
 | Reality 本机自测 | `true` |
 | Reality 自动 fallback | `true` |
 | 定期自检 timer | `true` |
+| 自检计划 | `daily`，随机延迟 `30min` |
 
 流量路径：
 
@@ -647,7 +676,7 @@ terminal.sh
 推荐系统镜像：
 
 ```text
-Ubuntu Server 26.04 LTS
+Ubuntu Server 24.04 LTS 或 Ubuntu Server 26.04 LTS
 ```
 
 个人轻量使用可以选择：
@@ -656,7 +685,7 @@ Ubuntu Server 26.04 LTS
 t3.micro
 ```
 
-创建实例时需要创建或选择 SSH Key Pair。本文档的 Windows CMD 示例默认使用 `.pem` 私钥文件。
+创建实例时需要创建或选择 SSH Key Pair。下面的示例默认使用兼容 OpenSSH 的本地终端和 `.pem` 私钥文件。
 
 ### 安全组 / 防火墙
 
@@ -677,23 +706,21 @@ t3.micro
 
 ## SSH 登录服务器
 
-本文档默认使用 Windows CMD。
+在 Windows、macOS 或 Linux 上打开本地终端，进入 `.pem` 私钥所在文件夹。例如私钥在 Downloads 文件夹：
 
-打开 CMD，进入 `.pem` 私钥所在文件夹。例如私钥在 Downloads 文件夹：
-
-```cmd
-cd %USERPROFILE%\Downloads
+```bash
+cd ~/Downloads
 ```
 
 使用下面的命令格式：
 
-```cmd
+```bash
 ssh -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]
 ```
 
 示例：
 
-```cmd
+```bash
 ssh -i key.pem ubuntu@192.168.1.1
 ```
 
@@ -787,22 +814,22 @@ sudo cat /opt/cloud-xray-terminal/clash.yaml
 
 ## 下载配置到本机
 
-在 Windows CMD 中，可以把生成的 Clash YAML 下载到 Downloads 文件夹：
+在本地终端中，可以把生成的 Clash YAML 下载到当前文件夹：
 
-```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
+```bash
+scp -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/clash.yaml ./raylink-clash.yaml
 ```
 
 示例：
 
-```cmd
-scp -i %USERPROFILE%\Downloads\key.pem ubuntu@192.168.1.1:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
+```bash
+scp -i key.pem ubuntu@192.168.1.1:/opt/cloud-xray-terminal/clash.yaml ./raylink-clash.yaml
 ```
 
 也可以下载直接 VLESS 链接文件：
 
-```cmd
-scp -i %USERPROFILE%\Downloads\[KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-uri.txt %USERPROFILE%\Downloads\vless-uri.txt
+```bash
+scp -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-uri.txt ./vless-uri.txt
 ```
 
 ## 部署时的常用自定义参数
@@ -917,6 +944,22 @@ bash
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env REALITY_SELF_TEST=false bash
 ```
+
+### Xray JSON 和客户端导入格式
+
+脚本里的 Xray JSON 配置按照当前 Xray REALITY 示例整理：
+
+- 服务端 inbound 使用 `settings.clients`。
+- Xray stream network 使用 `raw`。
+- 服务端 REALITY 目标使用 `realitySettings.target`。
+- 本机自测的临时 Xray 客户端使用 `realitySettings.password` 填写服务端公钥。
+
+客户端导入格式和 Xray JSON 不完全一样，所以会保留客户端自己的字段名：
+
+- Mihomo/Clash YAML 仍然使用 `network: tcp` 和 `reality-opts.public-key`。
+- VLESS URI 仍然使用 `type=tcp` 和 `pbk=...`。
+
+这是正常情况，不要把 Clash YAML 或 URI 里的字段机械改成 Xray JSON 字段名。
 
 ## 定期自检
 
@@ -1059,22 +1102,29 @@ sudo ss -ltnp | grep -E ':(443|8080)'
 sudo /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json
 ```
 
-## 在 Windows 上测试端口连通性
+## 在本地终端测试端口连通性
 
-在 Windows CMD 中运行：
+在 macOS 或 Linux 上，可以使用 `nc`：
 
-```cmd
-powershell -Command "Test-NetConnection [SERVER_PUBLIC_IP] -Port 443"
-powershell -Command "Test-NetConnection [SERVER_PUBLIC_IP] -Port 8080"
+```bash
+nc -vz [SERVER_PUBLIC_IP] 443
+nc -vz [SERVER_PUBLIC_IP] 8080
+```
+
+在 Windows PowerShell 中，可以使用：
+
+```powershell
+Test-NetConnection [SERVER_PUBLIC_IP] -Port 443
+Test-NetConnection [SERVER_PUBLIC_IP] -Port 8080
 ```
 
 示例：
 
-```cmd
-powershell -Command "Test-NetConnection 192.168.1.1 -Port 443"
+```bash
+nc -vz 192.168.1.1 443
 ```
 
-如果 `TcpTestSucceeded` 是 `False`，检查：
+如果测试失败，检查：
 
 - 服务器公网 IP 是否正确。
 - 安全组/防火墙是否开放端口。
