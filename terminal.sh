@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # RayLink terminal installer.
-# Change defaults here or pass values with: sudo env KEY=value bash terminal_realityv.sh
+# Change defaults here or pass values with: sudo env KEY=value bash terminal.sh
 
 PORT="${PORT:-443}"
 NODE_NAME="${NODE_NAME:-Terminal-Reality}"
@@ -744,7 +744,7 @@ validate_reality_inputs() {
     exit 1
   fi
 
-  # Use a generated shortId unless one was provided.
+  # shortId can be empty; generated value is always 16 hex chars.
   if ! printf '%s' "${SHORT_ID}" | grep -Eq '^[A-Fa-f0-9]{0,16}$'; then
     echo "Error: SHORT_ID must be hex and at most 16 characters, got: ${SHORT_ID}"
     exit 1
@@ -1154,9 +1154,8 @@ CLASH_EOF
   chmod 644 "${CLASH_FILE}"
 }
 
-# Write the base64 URI-list subscription file.
 write_uri_list_sub() {
-  # Keep the trailing newline for clients that expect text subscriptions.
+  # Trailing newline required by some subscription clients.
   printf '%s\n' "${VLESS_URI}" | base64_one_line > "${VLESS_URI_LIST_FILE}"
   printf '\n' >> "${VLESS_URI_LIST_FILE}"
   chmod 644 "${VLESS_URI_LIST_FILE}"
@@ -1360,7 +1359,7 @@ fi
 echo "[3/12] Preparing directories..."
 mkdir -p "${INSTALL_DIR}" "${XRAY_CONFIG_DIR}" "${XRAY_SHARE_DIR}"
 
-echo "[4/12] Detecting public IPv4..."
+echo "[4/12] Detecting public IPv4 and selecting DNS profile..."
 PUBLIC_IP="$(detect_public_ipv4 || true)"
 if [ -z "${PUBLIC_IP}" ]; then
   echo "Failed to detect public IPv4. You can rerun with PUBLIC_IP=x.x.x.x"
@@ -1368,7 +1367,6 @@ if [ -z "${PUBLIC_IP}" ]; then
 fi
 echo "Public IPv4: ${PUBLIC_IP}"
 
-echo "Selecting DNS profile for generated client config..."
 resolve_dns_profile
 
 echo "[5/12] Stopping old services that may occupy the terminal port..."
@@ -1385,10 +1383,9 @@ load_or_generate_reality_credentials
 echo "[8/12] Checking Reality target..."
 check_reality_target
 
-echo "Preparing least-privilege systemd identity..."
+echo "[9/12] Writing Xray config and systemd service..."
 ensure_xray_service_identity
 
-echo "[9/12] Writing Xray config and systemd service..."
 validate_reality_inputs
 write_xray_config
 write_xray_service
