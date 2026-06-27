@@ -4,6 +4,22 @@ set -euo pipefail
 # RayLink terminal installer.
 # Change defaults here or pass values with: sudo env KEY=value bash terminal.sh
 
+ENABLE_SUBSCRIPTION_WAS_SET="${ENABLE_SUBSCRIPTION+x}"
+
+# Operation mode.
+HEALTHCHECK_ONLY="${HEALTHCHECK_ONLY:-false}"
+for arg in "$@"; do
+  case "${arg}" in
+    --health-check|--healthcheck|healthcheck)
+      HEALTHCHECK_ONLY="true"
+      ;;
+    *)
+      echo "Unknown argument: ${arg}"
+      exit 1
+      ;;
+  esac
+done
+
 PORT="${PORT:-443}"
 NODE_NAME="${NODE_NAME:-Terminal-Reality}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/cloud-xray-terminal}"
@@ -72,6 +88,16 @@ UUID="${UUID:-}"
 PRIVATE_KEY="${PRIVATE_KEY:-}"
 PUBLIC_KEY="${PUBLIC_KEY:-}"
 SHORT_ID="${SHORT_ID:-}"
+
+# Periodic health check timer.
+ENABLE_HEALTHCHECK_TIMER="${ENABLE_HEALTHCHECK_TIMER:-true}"
+HEALTHCHECK_SCRIPT="${HEALTHCHECK_SCRIPT:-/usr/local/bin/raylink-terminal.sh}"
+HEALTHCHECK_SCRIPT_URL="${HEALTHCHECK_SCRIPT_URL:-https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh}"
+HEALTHCHECK_ENV_FILE="${HEALTHCHECK_ENV_FILE:-/etc/raylink-terminal-healthcheck.env}"
+HEALTHCHECK_ON_CALENDAR="${HEALTHCHECK_ON_CALENDAR:-daily}"
+HEALTHCHECK_RANDOMIZED_DELAY="${HEALTHCHECK_RANDOMIZED_DELAY:-30min}"
+HEALTHCHECK_SERVICE_NAME="${HEALTHCHECK_SERVICE_NAME:-raylink-terminal-healthcheck.service}"
+HEALTHCHECK_TIMER_NAME="${HEALTHCHECK_TIMER_NAME:-raylink-terminal-healthcheck.timer}"
 
 is_true() {
   case "${1:-}" in
@@ -1097,6 +1123,8 @@ perform_reality_self_test_with_fallbacks() {
   REALITY_SERVER_NAME="${original_sni}"
   CLIENT_FINGERPRINT="${original_fp}"
   echo "Error: all Reality target candidates failed the end-to-end self-test."
+  echo "Restoring the original Reality target and keeping the existing client configuration."
+  restart_xray_with_current_reality_target || true
   echo "Try setting REALITY_DEST / REALITY_SERVER_NAME / CLIENT_FINGERPRINT manually."
   exit 1
 }
@@ -1252,8 +1280,13 @@ configure_subscription() {
     SUBSCRIPTION_URL_CLASH "${SUBSCRIPTION_URL_CLASH}" \
     SUBSCRIPTION_URL_VLESS "${SUBSCRIPTION_URL_VLESS}"
 
-  cat > "${NGINX_SITE}" <<NGINX_EOF
-# Managed nginx site; overwritten on each run.
+  local tmp_nginx_site nginx_site_changed nginx_link_changed
+  tmp_nginx_site="$(mktemp /tmp/raylink-nginx-site.XXXXXX)"
+  nginx_site_changed=false
+  nginx_link_changed=false
+
+  cat > "${tmp_nginx_site}" <<NGINX_EOF
+# Managed nginx site; overwritten only when content changes.
 limit_req_zone \$binary_remote_addr zone=cloud_xray_sub_limit:10m rate=${SUB_RATE_LIMIT};
 
 server {
@@ -1312,36 +1345,51 @@ server {
 }
 NGINX_EOF
 
-  ln -sf "${NGINX_SITE}" "${NGINX_SITE_LINK}"
-  nginx -t
+  if [ ! -f "${NGINX_SITE}" ] || ! cmp -s "${tmp_nginx_site}" "${NGINX_SITE}"; then
+    install -m 644 "${tmp_nginx_site}" "${NGINX_SITE}"
+    nginx_site_changed=true
+  fi
+  rm -f "${tmp_nginx_site}"
+
+  if [ "$(readlink -f "${NGINX_SITE_LINK}" 2>/dev/null || true)" != "$(readlink -f "${NGINX_SITE}" 2>/dev/null || true)" ]; then
+    ln -sf "${NGINX_SITE}" "${NGINX_SITE_LINK}"
+    nginx_link_changed=true
+  fi
+
   systemctl enable nginx >/dev/null 2>&1 || true
-  systemctl restart nginx
+  if [ "${nginx_site_changed}" = "true" ] || [ "${nginx_link_changed}" = "true" ] || ! systemctl is-active --quiet nginx; then
+    nginx -t
+    if systemctl is-active --quiet nginx; then
+      systemctl reload nginx
+    else
+      systemctl start nginx
+    fi
+  else
+    echo "nginx subscription site unchanged; skip reload."
+  fi
 }
-if [ "$(id -u)" -ne 0 ]; then
-  echo "Please run this script as root, for example:"
-  echo "sudo env PORT=${PORT} NODE_NAME=${NODE_NAME} bash terminal_reality.sh"
-  exit 1
-fi
+require_root() {
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "Please run this script as root, for example:"
+    echo "sudo env PORT=${PORT} NODE_NAME=${NODE_NAME} bash terminal.sh"
+    exit 1
+  fi
+}
 
-validate_port_number PORT "${PORT}"
-if is_true "${ENABLE_SUBSCRIPTION}"; then
-  validate_port_number SUB_PORT "${SUB_PORT}"
-fi
+validate_common_ports() {
+  validate_port_number PORT "${PORT}"
+  if is_true "${ENABLE_SUBSCRIPTION}"; then
+    validate_port_number SUB_PORT "${SUB_PORT}"
+  fi
 
-if is_true "${ENABLE_SUBSCRIPTION}" && [ "${SUB_PORT}" = "${PORT}" ]; then
-  echo "SUB_PORT must be different from PORT. Current value: ${SUB_PORT}"
-  exit 1
-fi
+  if is_true "${ENABLE_SUBSCRIPTION}" && [ "${SUB_PORT}" = "${PORT}" ]; then
+    echo "SUB_PORT must be different from PORT. Current value: ${SUB_PORT}"
+    exit 1
+  fi
+}
 
-echo "=========================================="
-echo " Xray VLESS Reality Generic Terminal Setup"
-echo "=========================================="
-
-echo "[1/12] Installing required packages..."
-install_required_packages
-
-echo "[2/12] Applying TCP tuning..."
-cat > /etc/sysctl.d/99-cloud-xray-tuning.conf <<SYSCTL_EOF
+apply_tcp_tuning() {
+  cat > /etc/sysctl.d/99-cloud-xray-tuning.conf <<SYSCTL_EOF
 net.core.default_qdisc=fq
 net.ipv4.tcp_congestion_control=bbr
 net.ipv4.tcp_fastopen=3
@@ -1351,82 +1399,56 @@ net.core.wmem_max=16777216
 net.core.somaxconn=4096
 net.ipv4.tcp_max_syn_backlog=4096
 SYSCTL_EOF
-sysctl --system >/dev/null 2>&1 || true
-if ! sysctl net.ipv4.tcp_congestion_control 2>/dev/null | grep -q bbr; then
-  echo "Warning: BBR not activated. Kernel may not support it or provider may restrict it."
-fi
+  sysctl --system >/dev/null 2>&1 || true
+  if ! sysctl net.ipv4.tcp_congestion_control 2>/dev/null | grep -q bbr; then
+    echo "Warning: BBR not activated. Kernel may not support it or provider may restrict it."
+  fi
+}
 
-echo "[3/12] Preparing directories..."
-mkdir -p "${INSTALL_DIR}" "${XRAY_CONFIG_DIR}" "${XRAY_SHARE_DIR}"
+detect_public_ip_and_resolve_dns() {
+  PUBLIC_IP="$(detect_public_ipv4 || true)"
+  if [ -z "${PUBLIC_IP}" ]; then
+    echo "Failed to detect public IPv4. You can rerun with PUBLIC_IP=x.x.x.x"
+    exit 1
+  fi
+  echo "Public IPv4: ${PUBLIC_IP}"
 
-echo "[4/12] Detecting public IPv4 and selecting DNS profile..."
-PUBLIC_IP="$(detect_public_ipv4 || true)"
-if [ -z "${PUBLIC_IP}" ]; then
-  echo "Failed to detect public IPv4. You can rerun with PUBLIC_IP=x.x.x.x"
-  exit 1
-fi
-echo "Public IPv4: ${PUBLIC_IP}"
+  resolve_dns_profile
+}
 
-resolve_dns_profile
+load_existing_reality_credentials_for_healthcheck() {
+  if [ ! -f "${REALITY_ENV_FILE}" ]; then
+    echo "Error: ${REALITY_ENV_FILE} does not exist. Run the full installer first."
+    exit 1
+  fi
 
-echo "[5/12] Stopping old services that may occupy the terminal port..."
-systemctl disable --now shadowsocks-libev >/dev/null 2>&1 || true
-systemctl disable --now shadowsocks-libev-server@config.service >/dev/null 2>&1 || true
-systemctl stop "${XRAY_SERVICE}" >/dev/null 2>&1 || true
+  UUID="${UUID:-$(load_kv_file_var "${REALITY_ENV_FILE}" UUID)}"
+  PRIVATE_KEY="${PRIVATE_KEY:-$(load_kv_file_var "${REALITY_ENV_FILE}" PRIVATE_KEY)}"
+  PUBLIC_KEY="${PUBLIC_KEY:-$(load_kv_file_var "${REALITY_ENV_FILE}" PUBLIC_KEY)}"
+  SHORT_ID="${SHORT_ID:-$(load_kv_file_var "${REALITY_ENV_FILE}" SHORT_ID)}"
+  REALITY_DEST="${REALITY_DEST:-$(load_kv_file_var "${REALITY_ENV_FILE}" REALITY_DEST)}"
+  REALITY_SERVER_NAME="${REALITY_SERVER_NAME:-$(load_kv_file_var "${REALITY_ENV_FILE}" REALITY_SERVER_NAME)}"
+  CLIENT_FINGERPRINT="${CLIENT_FINGERPRINT:-$(load_kv_file_var "${REALITY_ENV_FILE}" CLIENT_FINGERPRINT)}"
+  FLOW="${FLOW:-$(load_kv_file_var "${REALITY_ENV_FILE}" FLOW)}"
 
-echo "[6/12] Installing Xray-core..."
-install_xray
+  FLOW="${FLOW:-xtls-rprx-vision}"
+  normalize_reality_target
 
-echo "[7/12] Loading or generating VLESS/Reality credentials..."
-load_or_generate_reality_credentials
+  if [ -z "${UUID}" ] || [ -z "${PRIVATE_KEY}" ] || [ -z "${PUBLIC_KEY}" ] || [ -z "${CLIENT_FINGERPRINT}" ]; then
+    echo "Error: saved Reality credentials are incomplete in ${REALITY_ENV_FILE}."
+    exit 1
+  fi
+}
 
-echo "[8/12] Checking Reality target..."
-check_reality_target
+assemble_vless_uri() {
+  URLENCODED_NODE_NAME="$(urlencode "${NODE_NAME}")"
+  VLESS_URI="vless://${UUID}@${PUBLIC_IP}:${PORT}?encryption=none&security=reality&sni=${REALITY_SERVER_NAME}&fp=${CLIENT_FINGERPRINT}&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=tcp&flow=${FLOW}#${URLENCODED_NODE_NAME}"
+  printf '%s\n' "${VLESS_URI}" > "${VLESS_FILE}"
+  chmod 644 "${VLESS_FILE}"
+}
 
-echo "[9/12] Writing Xray config and systemd service..."
-ensure_xray_service_identity
-
-validate_reality_inputs
-write_xray_config
-write_xray_service
-
-"${XRAY_BIN}" run -test -config "${XRAY_CONFIG}"
-
-systemctl daemon-reload
-systemctl enable "${XRAY_SERVICE}" >/dev/null 2>&1
-systemctl restart "${XRAY_SERVICE}"
-
-sleep 1
-
-if ! systemctl is-active --quiet "${XRAY_SERVICE}"; then
-  echo "Xray failed to start."
-  systemctl status "${XRAY_SERVICE}" --no-pager || true
-  journalctl -u "${XRAY_SERVICE}" -n 80 --no-pager || true
-  exit 1
-fi
-
-echo "[10/12] Running Reality self-test and fallback target selection..."
-perform_reality_self_test_with_fallbacks
-
-echo "[11/12] Generating Mihomo/Clash config and VLESS URI-list subscription..."
-write_clash_config
-
-URLENCODED_NODE_NAME="$(urlencode "${NODE_NAME}")"
-VLESS_URI="vless://${UUID}@${PUBLIC_IP}:${PORT}?encryption=none&security=reality&sni=${REALITY_SERVER_NAME}&fp=${CLIENT_FINGERPRINT}&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=tcp&flow=${FLOW}#${URLENCODED_NODE_NAME}"
-printf '%s\n' "${VLESS_URI}" > "${VLESS_FILE}"
-chmod 644 "${VLESS_FILE}"
-
-# Build URI-list after VLESS_URI is assembled.
-write_uri_list_sub
-
-echo "[12/12] Configuring optional HTTP subscription hosting..."
-SUBSCRIPTION_URL_UNIVERSAL=""
-SUBSCRIPTION_URL_CLASH=""
-SUBSCRIPTION_URL_VLESS=""
-disable_subscription_site_if_disabled
-configure_subscription
-
-cat > "${INFO_FILE}" <<INFO_EOF
+write_info_file() {
+  cat > "${INFO_FILE}" <<INFO_EOF
 Server information:
 Node role: Terminal
 Server type: Xray VLESS Reality
@@ -1471,8 +1493,8 @@ ${XRAY_CONFIG}
 ${REALITY_ENV_FILE}
 INFO_EOF
 
-if is_true "${ENABLE_SUBSCRIPTION}"; then
-  cat >> "${INFO_FILE}" <<INFO_SUB_EOF
+  if is_true "${ENABLE_SUBSCRIPTION}"; then
+    cat >> "${INFO_FILE}" <<INFO_SUB_EOF
 
 Subscription URLs:
   Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket):
@@ -1491,61 +1513,276 @@ Security warning:
   Do not share the URL publicly — it contains your full client config.
   Consider restricting TCP ${SUB_PORT} to known source IPs via your cloud firewall.
 INFO_SUB_EOF
-else
-  cat >> "${INFO_FILE}" <<INFO_SUB_EOF
+  else
+    cat >> "${INFO_FILE}" <<INFO_SUB_EOF
 
 Subscription:
   Enabled: false
-  To re-enable: ENABLE_SUBSCRIPTION=true bash terminal_reality.sh
+  To re-enable: ENABLE_SUBSCRIPTION=true bash terminal.sh
 INFO_SUB_EOF
-fi
+  fi
 
-chmod 600 "${INFO_FILE}" "${REALITY_ENV_FILE}"
-chown root:"${XRAY_SERVICE_GROUP}" "${XRAY_CONFIG}" 2>/dev/null || true
-chmod 640 "${XRAY_CONFIG}"
-chmod 644 "${CLASH_FILE}" "${VLESS_FILE}" "${VLESS_URI_LIST_FILE}"
+  chmod 600 "${INFO_FILE}" "${REALITY_ENV_FILE}"
+  chown root:"${XRAY_SERVICE_GROUP}" "${XRAY_CONFIG}" 2>/dev/null || true
+  chmod 640 "${XRAY_CONFIG}"
+  chmod 644 "${CLASH_FILE}" "${VLESS_FILE}" "${VLESS_URI_LIST_FILE}"
+}
 
-echo ""
-echo "=========================================="
-echo "Setup complete"
-echo "=========================================="
-echo "Full server information saved to: ${INFO_FILE}"
-echo "VLESS direct import link saved to: ${VLESS_FILE}"
+sync_client_outputs() {
+  write_clash_config
+  assemble_vless_uri
+  write_uri_list_sub
 
-echo ""
-echo "Xray status:"
-systemctl status "${XRAY_SERVICE}" --no-pager || true
+  SUBSCRIPTION_URL_UNIVERSAL=""
+  SUBSCRIPTION_URL_CLASH=""
+  SUBSCRIPTION_URL_VLESS=""
+  disable_subscription_site_if_disabled
+  configure_subscription
+  write_info_file
+}
 
-if is_true "${ENABLE_SUBSCRIPTION}"; then
+ensure_xray_running_for_healthcheck() {
+  if [ -f "${XRAY_CONFIG}" ] && systemctl is-active --quiet "${XRAY_SERVICE}"; then
+    return 0
+  fi
+
+  echo "Xray is not active or config is missing; restoring service from saved state."
+  ensure_xray_service_identity
+  write_xray_service
+  systemctl daemon-reload
+  restart_xray_with_current_reality_target
+  systemctl enable "${XRAY_SERVICE}" >/dev/null 2>&1 || true
+}
+
+write_healthcheck_env_file() {
+  # Keep fallback candidates in the script defaults unless explicitly set at runtime.
+  # Persisting the list here would freeze old candidates after script updates.
+  write_kv_env_file "${HEALTHCHECK_ENV_FILE}" \
+    PORT "${PORT}" \
+    NODE_NAME "${NODE_NAME}" \
+    INSTALL_DIR "${INSTALL_DIR}" \
+    XRAY_BIN "${XRAY_BIN}" \
+    XRAY_CONFIG_DIR "${XRAY_CONFIG_DIR}" \
+    XRAY_CONFIG "${XRAY_CONFIG}" \
+    XRAY_SHARE_DIR "${XRAY_SHARE_DIR}" \
+    XRAY_SERVICE_USER "${XRAY_SERVICE_USER}" \
+    XRAY_SERVICE_GROUP "${XRAY_SERVICE_GROUP}" \
+    LISTEN_ADDRESS "${LISTEN_ADDRESS}" \
+    ENABLE_TFO "${ENABLE_TFO}" \
+    DNS_PROFILE "${DNS_PROFILE}" \
+    AUTO_DNS_DOMESTIC_COUNTRIES "${AUTO_DNS_DOMESTIC_COUNTRIES}" \
+    SERVER_COUNTRY "${SERVER_COUNTRY}" \
+    CHECK_REALITY_TARGET "${CHECK_REALITY_TARGET}" \
+    REALITY_CHECK_STRICT "${REALITY_CHECK_STRICT}" \
+    REALITY_SELF_TEST "${REALITY_SELF_TEST}" \
+    REALITY_SELF_TEST_URL "${REALITY_SELF_TEST_URL}" \
+    REALITY_SELF_TEST_TIMEOUT "${REALITY_SELF_TEST_TIMEOUT}" \
+    REALITY_SELF_TEST_SOCKS_PORT "${REALITY_SELF_TEST_SOCKS_PORT}" \
+    REALITY_AUTO_FALLBACK "${REALITY_AUTO_FALLBACK}" \
+    ENABLE_SUBSCRIPTION "${ENABLE_SUBSCRIPTION}" \
+    SUB_PORT "${SUB_PORT}" \
+    SUB_ROOT "${SUB_ROOT}" \
+    SUB_ENV_FILE "${SUB_ENV_FILE}" \
+    NGINX_SITE "${NGINX_SITE}" \
+    NGINX_SITE_LINK "${NGINX_SITE_LINK}" \
+    SUB_RATE_LIMIT "${SUB_RATE_LIMIT}" \
+    SUB_RATE_BURST "${SUB_RATE_BURST}"
+}
+
+install_healthcheck_timer() {
+  if ! is_true "${ENABLE_HEALTHCHECK_TIMER}"; then
+    echo "Skip health check timer because ENABLE_HEALTHCHECK_TIMER=false"
+    return 0
+  fi
+
+  local script_dir src_path
+  script_dir="$(dirname "${HEALTHCHECK_SCRIPT}")"
+  mkdir -p "${script_dir}"
+
+  src_path="${BASH_SOURCE[0]:-}"
+  if [ -n "${src_path}" ] && [ -f "${src_path}" ] && [ -r "${src_path}" ]; then
+    if [ "$(readlink -f "${src_path}")" != "$(readlink -f "${HEALTHCHECK_SCRIPT}" 2>/dev/null || printf '%s' "${HEALTHCHECK_SCRIPT}")" ]; then
+      cp "${src_path}" "${HEALTHCHECK_SCRIPT}"
+    fi
+  else
+    if ! curl -fsSL "${HEALTHCHECK_SCRIPT_URL}" -o "${HEALTHCHECK_SCRIPT}"; then
+      echo "Warning: failed to install local health check script from ${HEALTHCHECK_SCRIPT_URL}."
+      echo "The terminal node is installed, but the periodic health check timer was not enabled."
+      return 0
+    fi
+  fi
+  chmod 755 "${HEALTHCHECK_SCRIPT}"
+  write_healthcheck_env_file
+
+  cat > "/etc/systemd/system/${HEALTHCHECK_SERVICE_NAME}" <<SERVICE_EOF
+[Unit]
+Description=RayLink terminal Reality health check
+After=network-online.target ${XRAY_SERVICE}
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-${HEALTHCHECK_ENV_FILE}
+ExecStart=${HEALTHCHECK_SCRIPT} --health-check
+SERVICE_EOF
+
+  cat > "/etc/systemd/system/${HEALTHCHECK_TIMER_NAME}" <<TIMER_EOF
+[Unit]
+Description=Run RayLink terminal Reality health check periodically
+
+[Timer]
+OnCalendar=${HEALTHCHECK_ON_CALENDAR}
+RandomizedDelaySec=${HEALTHCHECK_RANDOMIZED_DELAY}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+TIMER_EOF
+
+  systemctl daemon-reload
+  systemctl enable --now "${HEALTHCHECK_TIMER_NAME}" >/dev/null 2>&1 || true
+  echo "Health check timer enabled: ${HEALTHCHECK_TIMER_NAME} (${HEALTHCHECK_ON_CALENDAR}, randomized delay ${HEALTHCHECK_RANDOMIZED_DELAY})"
+}
+
+run_healthcheck_mode() {
+  require_root
+
+  if [ -z "${ENABLE_SUBSCRIPTION_WAS_SET}" ] && [ ! -f "${SUB_ENV_FILE}" ]; then
+    ENABLE_SUBSCRIPTION="false"
+  fi
+
+  validate_common_ports
+
+  echo "=========================================="
+  echo " RayLink terminal health check"
+  echo "=========================================="
+
+  if [ ! -x "${XRAY_BIN}" ]; then
+    echo "Error: Xray binary not found at ${XRAY_BIN}. Run the full installer first."
+    exit 1
+  fi
+
+  mkdir -p "${INSTALL_DIR}" "${XRAY_CONFIG_DIR}" "${XRAY_SHARE_DIR}"
+  detect_public_ip_and_resolve_dns
+  load_existing_reality_credentials_for_healthcheck
+  validate_reality_inputs
+  ensure_xray_running_for_healthcheck
+
+  perform_reality_self_test_with_fallbacks
+  sync_client_outputs
+
+  echo "Health check complete. Client files and subscription data are up to date."
+  echo "Current public IPv4: ${PUBLIC_IP}"
+  if is_true "${ENABLE_SUBSCRIPTION}"; then
+    echo "Subscription URL: ${SUBSCRIPTION_URL_CLASH}"
+  fi
+}
+
+run_full_install() {
+  require_root
+  validate_common_ports
+
+  echo "=========================================="
+  echo " Xray VLESS Reality Generic Terminal Setup"
+  echo "=========================================="
+
+  echo "[1/12] Installing required packages..."
+  install_required_packages
+
+  echo "[2/12] Applying TCP tuning..."
+  apply_tcp_tuning
+
+  echo "[3/12] Preparing directories..."
+  mkdir -p "${INSTALL_DIR}" "${XRAY_CONFIG_DIR}" "${XRAY_SHARE_DIR}"
+
+  echo "[4/12] Detecting public IPv4 and selecting DNS profile..."
+  detect_public_ip_and_resolve_dns
+
+  echo "[5/12] Stopping old services that may occupy the terminal port..."
+  systemctl disable --now shadowsocks-libev >/dev/null 2>&1 || true
+  systemctl disable --now shadowsocks-libev-server@config.service >/dev/null 2>&1 || true
+  systemctl stop "${XRAY_SERVICE}" >/dev/null 2>&1 || true
+
+  echo "[6/12] Installing Xray-core..."
+  install_xray
+
+  echo "[7/12] Loading or generating VLESS/Reality credentials..."
+  load_or_generate_reality_credentials
+
+  echo "[8/12] Checking Reality target..."
+  check_reality_target
+
+  echo "[9/12] Writing Xray config and systemd service..."
+  ensure_xray_service_identity
+  validate_reality_inputs
+  write_xray_config
+  write_xray_service
+
+  "${XRAY_BIN}" run -test -config "${XRAY_CONFIG}"
+
+  systemctl daemon-reload
+  systemctl enable "${XRAY_SERVICE}" >/dev/null 2>&1
+  systemctl restart "${XRAY_SERVICE}"
+
+  sleep 1
+
+  if ! systemctl is-active --quiet "${XRAY_SERVICE}"; then
+    echo "Xray failed to start."
+    systemctl status "${XRAY_SERVICE}" --no-pager || true
+    journalctl -u "${XRAY_SERVICE}" -n 80 --no-pager || true
+    exit 1
+  fi
+
+  echo "[10/12] Running Reality self-test and fallback target selection..."
+  perform_reality_self_test_with_fallbacks
+
+  echo "[11/12] Generating Mihomo/Clash config and VLESS URI-list subscription..."
+  sync_client_outputs
+
+  echo "[12/12] Configuring periodic health check..."
+  install_healthcheck_timer
+
   echo ""
-  echo "Nginx status:"
-  systemctl status nginx --no-pager || true
-fi
+  echo "=========================================="
+  echo "Setup complete"
+  echo "=========================================="
+  echo "Full server information saved to: ${INFO_FILE}"
+  echo "VLESS direct import link saved to: ${VLESS_FILE}"
 
-echo ""
-echo "Listening ports:"
-if is_true "${ENABLE_SUBSCRIPTION}"; then
-  ss -tulnp | grep -E ":(${PORT}|${SUB_PORT})([[:space:]]|$)" || true
+  echo ""
+  echo "Xray status:"
+  systemctl status "${XRAY_SERVICE}" --no-pager || true
+
+  if is_true "${ENABLE_SUBSCRIPTION}"; then
+    echo ""
+    echo "Nginx status:"
+    systemctl status nginx --no-pager || true
+  fi
+
+  echo ""
+  echo "Listening ports:"
+  if is_true "${ENABLE_SUBSCRIPTION}"; then
+    ss -tulnp | grep -E ":(${PORT}|${SUB_PORT})([[:space:]]|$)" || true
+  else
+    ss -tulnp | grep -E ":${PORT}([[:space:]]|$)" || true
+  fi
+
+  echo ""
+  echo "Important: allow TCP ${PORT} in your cloud firewall/security group."
+  echo "Reality over TCP does not need UDP ${PORT}."
+  echo "TCP Fast Open: ${ENABLE_TFO}. Set ENABLE_TFO=true if your client and network path support it."
+  if is_true "${ENABLE_SUBSCRIPTION}"; then
+    echo "Important: allow TCP ${SUB_PORT} if you want to access the subscription URLs from outside."
+    echo "Plain HTTP subscription warning: use only on trusted networks, or restrict ${SUB_PORT} by firewall/source IP."
+    echo "Do not publish the subscription URLs publicly; they contain your client config."
+  fi
+  if is_true "${ENABLE_HEALTHCHECK_TIMER}"; then
+    echo "Health check timer: ${HEALTHCHECK_TIMER_NAME}"
+  fi
+}
+
+if is_true "${HEALTHCHECK_ONLY}"; then
+  run_healthcheck_mode
 else
-  ss -tulnp | grep -E ":${PORT}([[:space:]]|$)" || true
-fi
-
-echo ""
-echo "Important: allow TCP ${PORT} in your cloud firewall/security group."
-echo "Reality over TCP does not need UDP ${PORT}."
-echo "TCP Fast Open: ${ENABLE_TFO}. Set ENABLE_TFO=true if your client and network path support it."
-if is_true "${ENABLE_SUBSCRIPTION}"; then
-  echo "Important: allow TCP ${SUB_PORT} if you want to access the subscription URLs from outside."
-  echo "Plain HTTP subscription warning: use only on trusted networks, or restrict ${SUB_PORT} by firewall/source IP."
-  echo "Do not publish the subscription URLs publicly; they contain your client config."
-fi
-
-# Keep the direct import link in files only; print subscription URLs instead.
-if is_true "${ENABLE_SUBSCRIPTION}"; then
-  echo ""
-  echo "Subscription URLs:"
-  echo "  Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket):"
-  echo "    ${SUBSCRIPTION_URL_UNIVERSAL}"
-  echo "  Mihomo / Clash Meta / FlClash / Clash Verge Rev:"
-  echo "    ${SUBSCRIPTION_URL_CLASH}"
+  run_full_install
 fi
