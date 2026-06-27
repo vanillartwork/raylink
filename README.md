@@ -1,80 +1,132 @@
 # RayLink
 
-[English](#english) | [中文](#中文)
+[English](#english) | [中文说明](#中文说明)
 
 ---
 
 # English
 
-RayLink is a small one-script deployment helper for a personal Xray VLESS Reality terminal node.
+RayLink is a script for one-click deployment of a personal Xray VPN node on a Linux server.
 
-It installs Xray on a Linux VPS, writes a systemd service, generates persistent VLESS Reality credentials, creates client subscriptions, and runs an end-to-end Reality self-test before publishing the generated client configuration.
+This README covers the terminal node installer:
 
-Use it only for legal and compliant network access. Cloud servers and data transfer may incur charges.
+```text
+terminal.sh
+```
 
-## What it deploys
+The script installs Xray, creates a systemd service, generates persistent VLESS Reality credentials, optionally publishes subscription files through nginx, and runs a local Reality self-test before printing the client import information.
 
-Default deployment:
+Use this project only for legal and compliant network access. Cloud servers and data transfer may incur charges.
+
+## Default settings
 
 | Item | Default |
 |---|---|
-| Protocol | VLESS Reality |
+| Server | Linux VPS / cloud server |
+| Recommended OS | Ubuntu 22.04 / 24.04 / 26.04 or Debian-like Linux |
+| Node role | Terminal node |
+| Xray protocol | VLESS Reality |
 | Transport | TCP |
-| Server port | `443` |
+| Node port | `443` |
+| HTTP subscription | Yes, enabled by default |
 | Subscription port | `8080` |
-| Xray service user | `xray:xray` |
 | Install directory | `/opt/cloud-xray-terminal` |
 | Xray config | `/usr/local/etc/xray/config.json` |
-| Client config | Mihomo/Clash YAML and base64 URI-list |
-| Reality target | Automatically self-tested, default starts with `www.cloudflare.com:443` |
-| TCP Fast Open | Disabled by default |
+| Xray service | `xray.service` |
+| Service user | `xray:xray` |
+| TCP Fast Open | No, disabled by default |
+| Reality self-test | Yes, enabled by default |
 
 Traffic path:
 
 ```text
 Client
-→ VPS public IP:443
+→ server public IPv4:443
 → Xray VLESS Reality inbound
-→ VPS direct outbound
+→ server direct outbound
 → Internet
 ```
 
-## Requirements
+## Server preparation
 
-Recommended server environment:
+You can use AWS EC2, Google Cloud, Oracle Cloud, Azure, or a normal VPS provider. The server should have a public IPv4 address and allow SSH access.
 
-- Ubuntu 22.04 / 24.04 / 26.04 or a Debian-like system with `apt` and `systemd`
-- Root access through `sudo`
-- A public IPv4 address
-- Cloud firewall/security group access
+### Example: AWS EC2
 
-This script is designed for normal VPS providers, AWS EC2, Google Cloud, Oracle Cloud, Azure, and similar Linux servers. It is not designed for OpenWrt directly.
+Recommended AMI:
 
-## Firewall rules
+```text
+Ubuntu Server 24.04 LTS or Ubuntu Server 26.04 LTS
+```
+
+Recommended instance type for light personal use:
+
+```text
+t3.micro
+```
+
+When creating the instance, create or select an SSH key pair. For Windows CMD examples in this README, a `.pem` key is assumed.
+
+### Security group / firewall
 
 Open these inbound TCP ports:
 
-| Port | Protocol | Purpose | Recommended source |
-|---:|---|---|---|
-| `22` | TCP | SSH | Your own IP |
-| `443` | TCP | VLESS Reality node | `0.0.0.0/0` |
-| `8080` | TCP | HTTP subscription | Your own IP if possible |
+| Type | Protocol | Port | Source | Purpose |
+|---|---|---:|---|---|
+| SSH | TCP | `22` | Your own IP | SSH login |
+| Custom TCP | TCP | `443` | `0.0.0.0/0` | Xray VLESS Reality node |
+| Custom TCP | TCP | `8080` | Your own IP if possible | HTTP subscription |
 
 Notes:
 
 - Reality over TCP does not need UDP `443`.
-- The subscription URL contains your full client configuration. Do not publish it.
-- Long-term, restrict TCP `8080` to your own IP or disable subscription hosting after importing the config.
+- The subscription URL contains your client configuration. Do not publish it.
+- If your client device is on a mobile network and the IP changes often, you may temporarily allow TCP `8080` from `0.0.0.0/0`, import the subscription, then restrict it again or disable subscription hosting.
+- If you change `PORT` or `SUB_PORT`, update the firewall/security group accordingly.
 
-## Quick install
+## SSH into the server
 
-SSH into the server, then run:
+This README uses Windows CMD examples.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
+Open CMD and go to the folder where your `.pem` key is saved. For example:
+
+```cmd
+cd %USERPROFILE%\Downloads
 ```
 
-After installation, the script prints two subscription URLs:
+Use this format:
+
+```cmd
+ssh -i [KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]
+```
+
+Example:
+
+```cmd
+ssh -i raylink-key.pem ubuntu@18.175.219.66
+```
+
+For Ubuntu cloud images, the default username is usually:
+
+```text
+ubuntu
+```
+
+Other providers may use `root`, `debian`, `admin`, or another username shown in their control panel.
+
+## One-line installation
+
+Run this command on the Linux server:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
+```
+
+After installation, the script prints the server information and subscription URLs.
+
+## Import into clients
+
+If HTTP subscription is enabled, the script prints URLs like these:
 
 ```text
 Universal URI-list:
@@ -82,47 +134,41 @@ http://SERVER_IP:8080/sub/TOKEN
 
 Mihomo / Clash Meta:
 http://SERVER_IP:8080/sub/TOKEN/clash.yaml
+
+VLESS URI-list:
+http://SERVER_IP:8080/sub/TOKEN/vless
 ```
 
-Use the `clash.yaml` URL for Mihomo/Clash-based clients. Use the universal URI-list URL for clients such as v2rayN, v2rayNG, Hiddify, and Shadowrocket when supported.
+Use:
 
-## Client import
+| Client type | Recommended import |
+|---|---|
+| Mihomo / Clash Meta / FlClash / Clash Verge Rev | `.../clash.yaml` |
+| Shadowrocket / v2rayN / v2rayNG / Hiddify | Universal URI-list or direct VLESS link |
 
-### Mihomo / Clash Meta / FlClash / Clash Verge Rev
-
-Import this URL:
-
-```text
-http://SERVER_IP:8080/sub/TOKEN/clash.yaml
-```
-
-Then select:
+For Clash/Mihomo clients, import the `clash.yaml` URL, then select:
 
 ```text
 GLOBAL → Terminal-Reality
 ```
 
-Enable system proxy or TUN mode in your client.
+Then enable system proxy or TUN mode in the client.
 
-### Shadowrocket / v2rayN / v2rayNG / Hiddify
-
-Import the universal URI-list URL:
-
-```text
-http://SERVER_IP:8080/sub/TOKEN
-```
-
-You can also copy the direct VLESS link from the server:
+To view the direct VLESS link on the server:
 
 ```bash
 sudo cat /opt/cloud-xray-terminal/vless-uri.txt
 ```
 
-The direct link is useful for troubleshooting, but the subscription URLs are easier to update.
-
 ## Generated files
 
-After installation, files are saved here:
+The script writes generated files under:
+
+```text
+/opt/cloud-xray-terminal
+```
+
+Common files:
 
 ```text
 /opt/cloud-xray-terminal/server-info.txt
@@ -131,6 +177,7 @@ After installation, files are saved here:
 /opt/cloud-xray-terminal/vless-uri-list
 /opt/cloud-xray-terminal/reality.env
 /opt/cloud-xray-terminal/subscription.env
+/opt/cloud-xray-terminal/public/
 /usr/local/etc/xray/config.json
 ```
 
@@ -143,41 +190,80 @@ sudo cat /opt/cloud-xray-terminal/vless-uri.txt
 sudo cat /opt/cloud-xray-terminal/clash.yaml
 ```
 
-## Re-running the script
+## Download generated config to your computer
 
-Re-running the script is safe. By default it reuses:
+From Windows CMD, download the generated Clash YAML to your Downloads folder:
 
-- UUID
-- Reality private/public key pair
-- shortId
-- Reality target
-- client fingerprint
-- subscription token
-
-This keeps existing client subscriptions stable unless you explicitly reset them.
-
-To regenerate Reality credentials:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env RESET_REALITY_CREDENTIALS=true bash
+```cmd
+scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
 ```
 
-To regenerate only the subscription token:
+Example:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env RESET_SUB_TOKEN=true bash
+```cmd
+scp -i %USERPROFILE%\Downloads\raylink-key.pem ubuntu@18.175.219.66:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
 ```
 
-## Reality target self-test and fallback
+You can also download the direct VLESS link file:
 
-Reality depends on a suitable TLS target. A target may pass a simple TLS check but still fail real Reality handshakes.
+```cmd
+scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-uri.txt %USERPROFILE%\Downloads\vless-uri.txt
+```
 
-The script performs two checks:
+## Common customization
+
+Pass environment variables before `bash`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env KEY=value bash
+```
+
+### Custom node port
+
+Example: use port `8443` instead of `443`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env PORT=8443 bash
+```
+
+Remember to open TCP `8443` in the firewall/security group.
+
+### Disable HTTP subscription hosting
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env ENABLE_SUBSCRIPTION=false bash
+```
+
+When subscription hosting is disabled, use the local files under `/opt/cloud-xray-terminal/` instead.
+
+### Change subscription port
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env SUB_PORT=18080 bash
+```
+
+Open TCP `18080` in the firewall/security group if you need remote subscription access.
+
+### Choose a Reality target manually
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
+REALITY_DEST=www.cloudflare.com:443 \
+REALITY_SERVER_NAME=www.cloudflare.com \
+CLIENT_FINGERPRINT=chrome \
+bash
+```
+
+## Reality self-test and fallback
+
+Reality depends on a suitable TLS target. A target may pass a simple TLS check but still fail a real Reality handshake.
+
+The script performs:
 
 1. A basic TLS 1.3 probe against the selected target.
-2. An end-to-end local Reality self-test by starting a temporary local Xray SOCKS client and connecting back to the local Reality inbound.
+2. A local end-to-end Reality self-test by starting a temporary local Xray SOCKS client and connecting back to the local Reality inbound.
 
-If the self-test fails and fallback is enabled, the script tries the configured candidate list and saves the first working target.
+If the self-test fails and fallback is enabled, the script tries the configured target candidates and saves the first working one.
 
 Default candidate format:
 
@@ -185,7 +271,7 @@ Default candidate format:
 dest|serverName|clientFingerprint
 ```
 
-Default candidate list:
+Default candidates:
 
 ```text
 www.cloudflare.com:443|www.cloudflare.com|chrome
@@ -195,20 +281,10 @@ www.speedtest.net:443|www.speedtest.net|chrome
 www.microsoft.com:443|www.microsoft.com|chrome
 ```
 
-Manually choose a target:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
-REALITY_DEST=www.cloudflare.com:443 \
-REALITY_SERVER_NAME=www.cloudflare.com \
-CLIENT_FINGERPRINT=chrome \
-bash
-```
-
 Custom candidate list:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
 REALITY_TARGET_CANDIDATES='www.cloudflare.com:443|www.cloudflare.com|chrome www.apple.com:443|www.apple.com|safari' \
 bash
 ```
@@ -216,81 +292,70 @@ bash
 Disable self-test only when you know what you are doing:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env REALITY_SELF_TEST=false bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env REALITY_SELF_TEST=false bash
 ```
 
-## Common options
+## DNS profiles for generated Clash YAML
 
-Use environment variables before `bash`:
+`DNS_PROFILE` controls the DNS section written into `clash.yaml`.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env KEY=value bash
-```
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `PORT` | `443` | Xray Reality inbound port |
-| `SUB_PORT` | `8080` | HTTP subscription port |
-| `NODE_NAME` | `Terminal-Reality` | Client node name |
-| `ENABLE_SUBSCRIPTION` | `true` | Enable nginx subscription hosting |
-| `ENABLE_TFO` | `false` | Enable TCP Fast Open in Xray and generated client config |
-| `DNS_PROFILE` | `mixed` | DNS profile for generated Mihomo/Clash YAML |
-| `REALITY_DEST` | auto/default | Reality target, such as `www.cloudflare.com:443` |
-| `REALITY_SERVER_NAME` | target host | Reality SNI/serverName |
-| `CLIENT_FINGERPRINT` | `chrome` by default pool | Client fingerprint used by generated config |
-| `REALITY_SELF_TEST` | `true` | Run local end-to-end Reality self-test |
-| `REALITY_AUTO_FALLBACK` | `true` | Try fallback targets when self-test fails |
-| `RESET_REALITY_CREDENTIALS` | `false` | Regenerate UUID/key/shortId |
-| `RESET_SUB_TOKEN` | `false` | Regenerate subscription token |
-| `PUBLIC_IP` | auto-detected | Override public IPv4 detection |
-
-Examples:
-
-Custom port:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env PORT=8443 bash
-```
-
-Disable HTTP subscription hosting:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env ENABLE_SUBSCRIPTION=false bash
-```
-
-Use a domestic DNS profile in generated Mihomo config:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env DNS_PROFILE=domestic bash
-```
-
-## DNS profiles
-
-The DNS profile only affects the generated Mihomo/Clash YAML.
-
-| Profile | Use case |
+| Value | Use case |
 |---|---|
-| `mixed` | Default general-purpose profile |
-| `foreign` | Mostly global/overseas sites |
-| `domestic` | China-oriented or return-home style usage |
-| `minimal` | Compatibility-first redir-host DNS |
-| `auto` | Selects domestic/foreign based on server country list |
+| `mixed` | Default, general use |
+| `foreign` | Mostly global/foreign websites |
+| `domestic` | Mostly China-oriented access |
+| `minimal` | Compatibility-first DNS config |
+| `auto` | Legacy auto selection based on server country |
 
-If a Clash/Mihomo client imports successfully but Global mode cannot open websites, try:
+Example:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env DNS_PROFILE=domestic bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env DNS_PROFILE=domestic bash
 ```
 
-Then delete the old profile in the client and import the new subscription again.
+## Re-running the script
 
-## Useful server commands
+Re-running the script is safe. By default, it reuses existing values from `/opt/cloud-xray-terminal/reality.env` and `/opt/cloud-xray-terminal/subscription.env`.
+
+It normally keeps:
+
+- UUID
+- Reality private/public key pair
+- shortId
+- Reality target
+- client fingerprint
+- subscription token
+
+Regenerate Reality credentials:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env RESET_REALITY_CREDENTIALS=true bash
+```
+
+Regenerate only the subscription token:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env RESET_SUB_TOKEN=true bash
+```
+
+## Useful service commands
 
 Check service status:
 
 ```bash
 sudo systemctl status xray --no-pager
-sudo systemctl status nginx --no-pager
+```
+
+View recent logs:
+
+```bash
+sudo journalctl -u xray -n 80 --no-pager
+```
+
+Restart Xray:
+
+```bash
+sudo systemctl restart xray
 ```
 
 Check listening ports:
@@ -299,207 +364,262 @@ Check listening ports:
 sudo ss -ltnp | grep -E ':(443|8080)'
 ```
 
-Test Xray config:
+Test the Xray config:
 
 ```bash
 sudo /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json
 ```
 
-View logs:
+## Test port connectivity from Windows
 
-```bash
-sudo journalctl -u xray -n 100 --no-pager
-sudo journalctl -u nginx -n 100 --no-pager
+From Windows CMD:
+
+```cmd
+powershell -Command "Test-NetConnection [SERVER_PUBLIC_IP] -Port 443"
+powershell -Command "Test-NetConnection [SERVER_PUBLIC_IP] -Port 8080"
 ```
 
-Follow Xray logs:
+Example:
 
-```bash
-sudo journalctl -u xray -f
+```cmd
+powershell -Command "Test-NetConnection 18.175.219.66 -Port 443"
 ```
+
+If `TcpTestSucceeded` is `False`, check:
+
+- The server public IPv4 is correct.
+- The firewall/security group allows the port.
+- Xray is running.
+- The script was run on the same server IP used by the client.
 
 ## Troubleshooting
 
 ### Client shows timeout
 
-Check the server first:
+Check server status:
 
 ```bash
 sudo systemctl is-active xray
-sudo ss -ltnp | grep ':443'
+sudo ss -ltnp | grep -E ':(443|8080)'
 sudo /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json
 ```
 
-From Windows PowerShell:
+If TCP `443` is not reachable from your computer, fix the cloud firewall/security group first.
 
-```powershell
-Test-NetConnection SERVER_IP -Port 443
-```
+### Subscription URL cannot open
 
-If TCP `443` is not reachable, check cloud firewall/security group rules and the server public IP.
-
-### Subscription URL cannot be opened
-
-Check nginx and port `8080`:
+Check whether subscription hosting is enabled:
 
 ```bash
-sudo systemctl is-active nginx
-sudo ss -ltnp | grep ':8080'
 sudo cat /opt/cloud-xray-terminal/subscription.env
+sudo systemctl status nginx --no-pager
+sudo ss -ltnp | grep ':8080'
 ```
 
-Make sure TCP `8080` is allowed by the cloud firewall if you want to access subscriptions from outside.
+Also check that TCP `8080` is allowed by the cloud firewall/security group.
 
-### It worked before but suddenly fails
+### Node worked before but suddenly fails
 
-Reality targets can become unsuitable over time. Re-run the script. It will self-test the saved target and try fallback targets if needed:
+Reality targets can become unsuitable. Re-run the script and let the self-test/fallback select a working target:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
 ```
 
-If needed, manually choose a known working target:
+Then update or re-import the subscription in your client.
+
+### Public IP changed
+
+If the server uses an auto-assigned public IP, the IP may change after stopping and starting the instance.
+
+Check the cloud console for the current public IPv4 address. Re-run the script to regenerate subscriptions with the new IP:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
-REALITY_DEST=www.cloudflare.com:443 \
-REALITY_SERVER_NAME=www.cloudflare.com \
-CLIENT_FINGERPRINT=chrome \
-bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
 ```
 
-### Imported node works in one client but not another
-
-Check whether the client supports:
-
-```text
-VLESS
-Reality
-XTLS Vision / flow=xtls-rprx-vision
-uTLS / client fingerprint
-```
-
-For Mihomo/Clash-based clients, use the `/clash.yaml` subscription.
-
-For clients that support URI-list imports, use `/sub/TOKEN`.
-
-### Server IP changed
-
-If the VPS public IP changes, re-run the script so the generated subscription points to the new IP:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
-```
-
-Then update or re-import the client subscription.
+To avoid this issue, use a static IP such as AWS Elastic IP or your provider's equivalent.
 
 ## Uninstall
 
-Stop and remove the Xray service and generated files:
+Stop and disable Xray:
 
 ```bash
-sudo systemctl disable --now xray 2>/dev/null || true
+sudo systemctl disable --now xray
 sudo rm -f /etc/systemd/system/xray.service
-sudo rm -rf /opt/cloud-xray-terminal
-sudo rm -f /usr/local/etc/xray/config.json
 sudo systemctl daemon-reload
 ```
 
-Remove the managed nginx subscription site:
+Remove generated files:
+
+```bash
+sudo rm -rf /opt/cloud-xray-terminal
+sudo rm -rf /usr/local/etc/xray
+```
+
+Remove the script-managed nginx site if subscription hosting was enabled:
 
 ```bash
 sudo rm -f /etc/nginx/sites-enabled/cloud-xray-terminal-subscription
 sudo rm -f /etc/nginx/sites-available/cloud-xray-terminal-subscription
-sudo nginx -t && sudo systemctl reload nginx
+sudo systemctl reload nginx || true
 ```
 
-The commands above do not uninstall nginx or the Xray binary in `/usr/local/bin/xray`.
+The Xray binary is installed at `/usr/local/bin/xray`. Remove it only if you do not use it for anything else:
+
+```bash
+sudo rm -f /usr/local/bin/xray
+```
 
 ## Security notes
 
-- Keep SSH port `22` restricted to your own IP.
-- Do not share `server-info.txt`, `reality.env`, `subscription.env`, or the subscription URLs publicly.
-- The HTTP subscription contains your complete client configuration.
-- Restrict TCP `8080` when possible.
-- Do not commit generated server files, keys, or subscriptions to GitHub.
+Do not upload these files to a public repository:
+
+```text
+/opt/cloud-xray-terminal/reality.env
+/opt/cloud-xray-terminal/subscription.env
+/opt/cloud-xray-terminal/server-info.txt
+/opt/cloud-xray-terminal/vless-uri.txt
+/opt/cloud-xray-terminal/clash.yaml
+*.pem
+```
+
+Recommended practices:
+
+- Keep SSH port `22` limited to your own IP.
+- Restrict or disable subscription port `8080` after importing the configuration.
+- Do not share the subscription URL, VLESS link, UUID, Reality keys, or shortId.
+- Watch your cloud billing and bandwidth usage.
 
 ## License
 
-MIT License.
+This project is released under the MIT License.
 
 ---
 
-# 中文
+# 中文说明
 
-RayLink 是一个用于个人 Linux VPS 的 Xray VLESS Reality terminal 节点部署脚本。
+RayLink 是一个用于在 Linux 服务器上一键部署 Xray 个人 VPN 节点的脚本。
 
-它会安装 Xray，写入 systemd 服务，生成持久化 VLESS Reality 参数，创建客户端订阅，并在输出订阅前执行端到端 Reality 自测。
+本文档目前说明的是 terminal 节点部署脚本：
 
-请仅用于合法、合规的网络访问。云服务器和流量可能产生费用。
+```text
+terminal.sh
+```
 
-## 部署内容
+脚本会安装 Xray，创建 systemd 服务，生成并保存 VLESS Reality 连接参数，根据需要通过 nginx 提供订阅链接，并在输出客户端配置前执行本机 Reality 自测。
 
-默认部署：
+请仅用于合法、合规的网络访问。云服务器和流量可能产生费用，请注意账单。
+
+## 默认配置
 
 | 项目 | 默认值 |
 |---|---|
-| 协议 | VLESS Reality |
-| 传输 | TCP |
+| 服务器 | Linux VPS / 云服务器 |
+| 推荐系统 | Ubuntu 22.04 / 24.04 / 26.04 或 Debian 系 Linux |
+| 节点角色 | Terminal 节点 |
+| Xray 协议 | VLESS Reality |
+| 传输方式 | TCP |
 | 节点端口 | `443` |
+| HTTP 订阅 | 是，默认开启 |
 | 订阅端口 | `8080` |
-| Xray 服务用户 | `xray:xray` |
 | 安装目录 | `/opt/cloud-xray-terminal` |
 | Xray 配置 | `/usr/local/etc/xray/config.json` |
-| 客户端配置 | Mihomo/Clash YAML 和 Base64 URI-list |
-| Reality target | 自动自测，默认从 `www.cloudflare.com:443` 开始 |
-| TCP Fast Open | 默认关闭 |
+| Xray 服务 | `xray.service` |
+| 服务用户 | `xray:xray` |
+| TCP Fast Open | 否，默认关闭 |
+| Reality 本机自测 | 是，默认开启 |
 
 流量路径：
 
 ```text
 客户端
-→ VPS 公网 IP:443
+→ 服务器公网 IPv4:443
 → Xray VLESS Reality 入站
-→ VPS 直连出站
-→ Internet
+→ 服务器 direct 出站
+→ 互联网
 ```
 
-## 环境要求
+## 服务器准备
 
-推荐环境：
+你可以使用 AWS EC2、Google Cloud、Oracle Cloud、Azure，或者普通 VPS 服务商。服务器需要有公网 IPv4，并且可以通过 SSH 登录。
 
-- Ubuntu 22.04 / 24.04 / 26.04，或带 `apt` 和 `systemd` 的 Debian-like 系统
-- 可使用 `sudo`
-- 有公网 IPv4
-- 可以修改云防火墙或安全组
+### 示例：AWS EC2
 
-这个脚本适合普通 VPS、AWS EC2、Google Cloud、Oracle Cloud、Azure 等 Linux 服务器。不适合直接跑在 OpenWrt 上。
+推荐系统镜像：
 
-## 防火墙 / 安全组
+```text
+Ubuntu Server 24.04 LTS 或 Ubuntu Server 26.04 LTS
+```
 
-需要开放这些 TCP 入站端口：
+个人轻量使用可以选择：
 
-| 端口 | 协议 | 用途 | 建议来源 |
-|---:|---|---|---|
-| `22` | TCP | SSH | 你的 IP |
-| `443` | TCP | VLESS Reality 节点 | `0.0.0.0/0` |
-| `8080` | TCP | HTTP 订阅 | 尽量只允许你的 IP |
+```text
+t3.micro
+```
+
+创建实例时需要创建或选择 SSH Key Pair。本文档的 Windows CMD 示例默认使用 `.pem` 私钥文件。
+
+### 安全组 / 防火墙
+
+需要开放以下入站 TCP 端口：
+
+| 类型 | 协议 | 端口 | 来源 | 用途 |
+|---|---|---:|---|---|
+| SSH | TCP | `22` | 你的 IP | SSH 登录 |
+| Custom TCP | TCP | `443` | `0.0.0.0/0` | Xray VLESS Reality 节点 |
+| Custom TCP | TCP | `8080` | 尽量限制为你的 IP | HTTP 订阅 |
 
 说明：
 
-- Reality over TCP 不需要 UDP `443`。
-- 订阅 URL 包含完整客户端配置，不要公开。
-- 长期使用建议限制 TCP `8080` 来源 IP，或导入客户端后关闭订阅服务。
+- Reality over TCP 不需要开放 UDP `443`。
+- 订阅链接包含完整客户端配置，不要公开。
+- 如果你的客户端在手机移动网络下使用，IP 经常变化，可以临时把 TCP `8080` 开给 `0.0.0.0/0`，导入完成后再限制来源，或者关闭订阅功能。
+- 如果修改了 `PORT` 或 `SUB_PORT`，安全组/防火墙也要同步修改。
+
+## SSH 登录服务器
+
+本文档默认使用 Windows CMD。
+
+打开 CMD，进入 `.pem` 私钥所在文件夹。例如私钥在 Downloads 文件夹：
+
+```cmd
+cd %USERPROFILE%\Downloads
+```
+
+使用下面的命令格式：
+
+```cmd
+ssh -i [KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]
+```
+
+示例：
+
+```cmd
+ssh -i raylink-key.pem ubuntu@18.175.219.66
+```
+
+Ubuntu 云镜像默认用户名通常是：
+
+```text
+ubuntu
+```
+
+其他服务商可能是 `root`、`debian`、`admin`，或者控制台里显示的用户名。
 
 ## 一键安装
 
-SSH 登录服务器后运行：
+在 Linux 服务器上运行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
 ```
 
-安装完成后会输出两个订阅 URL：
+安装完成后，脚本会输出服务器信息和订阅链接。
+
+## 导入客户端
+
+如果 HTTP 订阅开启，脚本会输出类似下面的链接：
 
 ```text
 Universal URI-list:
@@ -507,47 +627,41 @@ http://SERVER_IP:8080/sub/TOKEN
 
 Mihomo / Clash Meta:
 http://SERVER_IP:8080/sub/TOKEN/clash.yaml
+
+VLESS URI-list:
+http://SERVER_IP:8080/sub/TOKEN/vless
 ```
 
-Mihomo/Clash 类客户端使用 `/clash.yaml`。v2rayN、v2rayNG、Hiddify、Shadowrocket 等客户端可尝试使用通用 URI-list。
+推荐这样导入：
 
-## 客户端导入
+| 客户端类型 | 推荐导入方式 |
+|---|---|
+| Mihomo / Clash Meta / FlClash / Clash Verge Rev | `.../clash.yaml` |
+| Shadowrocket / v2rayN / v2rayNG / Hiddify | Universal URI-list 或直接 VLESS 链接 |
 
-### Mihomo / Clash Meta / FlClash / Clash Verge Rev
-
-导入这个 URL：
-
-```text
-http://SERVER_IP:8080/sub/TOKEN/clash.yaml
-```
-
-然后选择：
+对于 Clash/Mihomo 类客户端，导入 `clash.yaml` 订阅后选择：
 
 ```text
 GLOBAL → Terminal-Reality
 ```
 
-并开启系统代理或 TUN 模式。
+然后在客户端里开启系统代理或 TUN 模式。
 
-### Shadowrocket / v2rayN / v2rayNG / Hiddify
-
-导入通用 URI-list：
-
-```text
-http://SERVER_IP:8080/sub/TOKEN
-```
-
-也可以从服务器复制直连 VLESS 链接：
+在服务器上查看直接 VLESS 链接：
 
 ```bash
 sudo cat /opt/cloud-xray-terminal/vless-uri.txt
 ```
 
-直连链接适合排错，日常使用订阅更方便更新。
+## 生成的文件
 
-## 生成文件
+脚本生成的文件位于：
 
-安装后会生成：
+```text
+/opt/cloud-xray-terminal
+```
+
+常见文件：
 
 ```text
 /opt/cloud-xray-terminal/server-info.txt
@@ -556,6 +670,7 @@ sudo cat /opt/cloud-xray-terminal/vless-uri.txt
 /opt/cloud-xray-terminal/vless-uri-list
 /opt/cloud-xray-terminal/reality.env
 /opt/cloud-xray-terminal/subscription.env
+/opt/cloud-xray-terminal/public/
 /usr/local/etc/xray/config.json
 ```
 
@@ -568,41 +683,80 @@ sudo cat /opt/cloud-xray-terminal/vless-uri.txt
 sudo cat /opt/cloud-xray-terminal/clash.yaml
 ```
 
-## 重跑脚本
+## 下载配置到本机
 
-重复运行脚本是安全的。默认会复用：
+在 Windows CMD 中，可以把生成的 Clash YAML 下载到 Downloads 文件夹：
 
-- UUID
-- Reality 私钥/公钥
-- shortId
-- Reality target
-- 客户端 fingerprint
-- 订阅 token
-
-这样旧客户端订阅不会因为重跑脚本而失效，除非你主动重置。
-
-重新生成 Reality 凭据：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env RESET_REALITY_CREDENTIALS=true bash
+```cmd
+scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
 ```
 
-只重新生成订阅 token：
+示例：
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env RESET_SUB_TOKEN=true bash
+```cmd
+scp -i %USERPROFILE%\Downloads\raylink-key.pem ubuntu@18.175.219.66:/opt/cloud-xray-terminal/clash.yaml %USERPROFILE%\Downloads\raylink-clash.yaml
 ```
 
-## Reality target 自测和自动切换
+也可以下载直接 VLESS 链接文件：
 
-Reality 依赖合适的 TLS target。有些 target 可以通过普通 TLS 检查，但实际 Reality 握手会失败。
+```cmd
+scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-uri.txt %USERPROFILE%\Downloads\vless-uri.txt
+```
 
-脚本会做两层检查：
+## 常用自定义参数
 
-1. 用 `openssl` 检查目标是否支持 TLS 1.3。
-2. 启动临时本地 Xray SOCKS 客户端，连接回本机 Reality 入站，做端到端自测。
+在 `bash` 前通过环境变量传参：
 
-如果自测失败并且 fallback 开启，脚本会尝试候选 target，并保存第一个可用的组合。
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env KEY=value bash
+```
+
+### 自定义节点端口
+
+例如使用 `8443` 端口：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env PORT=8443 bash
+```
+
+记得在安全组/防火墙里开放 TCP `8443`。
+
+### 关闭 HTTP 订阅
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env ENABLE_SUBSCRIPTION=false bash
+```
+
+关闭订阅后，可以使用 `/opt/cloud-xray-terminal/` 里的本地配置文件。
+
+### 修改订阅端口
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env SUB_PORT=18080 bash
+```
+
+如果需要远程访问订阅链接，记得开放 TCP `18080`。
+
+### 手动指定 Reality target
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
+REALITY_DEST=www.cloudflare.com:443 \
+REALITY_SERVER_NAME=www.cloudflare.com \
+CLIENT_FINGERPRINT=chrome \
+bash
+```
+
+## Reality 自测和 fallback
+
+Reality 依赖合适的 TLS target。有些 target 可以通过简单 TLS 检查，但真实 Reality 握手仍然失败。
+
+脚本会执行：
+
+1. 对当前 target 做基础 TLS 1.3 检查。
+2. 启动一个临时本地 Xray SOCKS 客户端，连接回本机 Reality 入站，做端到端 Reality 自测。
+
+如果自测失败并且 fallback 开启，脚本会尝试候选 target，并保存第一个可用的 target。
 
 候选格式：
 
@@ -620,105 +774,84 @@ www.speedtest.net:443|www.speedtest.net|chrome
 www.microsoft.com:443|www.microsoft.com|chrome
 ```
 
-手动指定 target：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
-REALITY_DEST=www.cloudflare.com:443 \
-REALITY_SERVER_NAME=www.cloudflare.com \
-CLIENT_FINGERPRINT=chrome \
-bash
-```
-
 自定义候选列表：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
 REALITY_TARGET_CANDIDATES='www.cloudflare.com:443|www.cloudflare.com|chrome www.apple.com:443|www.apple.com|safari' \
 bash
 ```
 
-仅在明确知道原因时关闭自测：
+只有你明确知道自己在做什么时，才建议关闭自测：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env REALITY_SELF_TEST=false bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env REALITY_SELF_TEST=false bash
 ```
 
-## 常用参数
+## Clash YAML 的 DNS profile
 
-环境变量写在 `bash` 前面：
+`DNS_PROFILE` 会影响生成的 `clash.yaml` 里的 DNS 配置。
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env KEY=value bash
-```
-
-| 参数 | 默认值 | 说明 |
-|---|---|---|
-| `PORT` | `443` | Xray Reality 入站端口 |
-| `SUB_PORT` | `8080` | HTTP 订阅端口 |
-| `NODE_NAME` | `Terminal-Reality` | 客户端节点名称 |
-| `ENABLE_SUBSCRIPTION` | `true` | 是否启用 nginx 订阅服务 |
-| `ENABLE_TFO` | `false` | 是否在 Xray 和生成的客户端配置中启用 TCP Fast Open |
-| `DNS_PROFILE` | `mixed` | 生成 Mihomo/Clash YAML 时使用的 DNS 配置 |
-| `REALITY_DEST` | 自动/默认 | Reality target，例如 `www.cloudflare.com:443` |
-| `REALITY_SERVER_NAME` | target 主机名 | Reality SNI/serverName |
-| `CLIENT_FINGERPRINT` | 默认从 `chrome` 开始 | 客户端 fingerprint |
-| `REALITY_SELF_TEST` | `true` | 是否执行本地端到端 Reality 自测 |
-| `REALITY_AUTO_FALLBACK` | `true` | 自测失败时是否尝试候选 target |
-| `RESET_REALITY_CREDENTIALS` | `false` | 是否重新生成 UUID/key/shortId |
-| `RESET_SUB_TOKEN` | `false` | 是否重新生成订阅 token |
-| `PUBLIC_IP` | 自动检测 | 手动指定公网 IPv4 |
+| 值 | 适用场景 |
+|---|---|
+| `mixed` | 默认，通用配置 |
+| `foreign` | 主要访问海外/全球网站 |
+| `domestic` | 主要访问中国方向服务 |
+| `minimal` | 优先兼容性的 DNS 配置 |
+| `auto` | 根据服务器国家选择的旧兼容模式 |
 
 示例：
 
-自定义节点端口：
-
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env PORT=8443 bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env DNS_PROFILE=domestic bash
 ```
 
-关闭 HTTP 订阅：
+## 重新运行脚本
+
+重复运行脚本是安全的。默认会复用 `/opt/cloud-xray-terminal/reality.env` 和 `/opt/cloud-xray-terminal/subscription.env` 里的已有参数。
+
+通常会保持不变：
+
+- UUID
+- Reality 私钥/公钥
+- shortId
+- Reality target
+- client fingerprint
+- 订阅 token
+
+重新生成 Reality 凭据：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env ENABLE_SUBSCRIPTION=false bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env RESET_REALITY_CREDENTIALS=true bash
 ```
 
-生成更偏国内解析的 Mihomo 配置：
+只重新生成订阅 token：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env DNS_PROFILE=domestic bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env RESET_SUB_TOKEN=true bash
 ```
 
-## DNS 配置
+## 常用服务命令
 
-DNS profile 只影响生成的 Mihomo/Clash YAML。
-
-| Profile | 适用场景 |
-|---|---|
-| `mixed` | 默认通用配置 |
-| `foreign` | 主要访问海外网站 |
-| `domestic` | 回国/主要访问中国网站 |
-| `minimal` | 兼容优先的 redir-host 配置 |
-| `auto` | 根据服务器国家列表选择 domestic 或 foreign |
-
-如果 Clash/Mihomo 能导入节点，但 Global 后网页打不开，可以试：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env DNS_PROFILE=domestic bash
-```
-
-然后删除客户端旧 profile，重新导入新订阅。
-
-## 常用服务器命令
-
-检查服务：
+查看服务状态：
 
 ```bash
 sudo systemctl status xray --no-pager
-sudo systemctl status nginx --no-pager
 ```
 
-检查端口：
+查看最近日志：
+
+```bash
+sudo journalctl -u xray -n 80 --no-pager
+```
+
+重启 Xray：
+
+```bash
+sudo systemctl restart xray
+```
+
+检查监听端口：
 
 ```bash
 sudo ss -ltnp | grep -E ':(443|8080)'
@@ -730,124 +863,127 @@ sudo ss -ltnp | grep -E ':(443|8080)'
 sudo /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json
 ```
 
-查看日志：
+## 在 Windows 上测试端口连通性
 
-```bash
-sudo journalctl -u xray -n 100 --no-pager
-sudo journalctl -u nginx -n 100 --no-pager
+在 Windows CMD 中运行：
+
+```cmd
+powershell -Command "Test-NetConnection [SERVER_PUBLIC_IP] -Port 443"
+powershell -Command "Test-NetConnection [SERVER_PUBLIC_IP] -Port 8080"
 ```
 
-实时查看 Xray 日志：
+示例：
 
-```bash
-sudo journalctl -u xray -f
+```cmd
+powershell -Command "Test-NetConnection 18.175.219.66 -Port 443"
 ```
+
+如果 `TcpTestSucceeded` 是 `False`，检查：
+
+- 服务器公网 IP 是否正确。
+- 安全组/防火墙是否开放端口。
+- Xray 是否正在运行。
+- 客户端使用的 IP 是否和脚本生成配置里的 IP 一致。
 
 ## 排错
 
 ### 客户端显示 timeout
 
-先在服务器检查：
+先在服务器上检查：
 
 ```bash
 sudo systemctl is-active xray
-sudo ss -ltnp | grep ':443'
+sudo ss -ltnp | grep -E ':(443|8080)'
 sudo /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json
 ```
 
-Windows PowerShell 测试：
+如果你的电脑无法连接 TCP `443`，先检查云平台安全组/防火墙。
 
-```powershell
-Test-NetConnection SERVER_IP -Port 443
-```
+### 订阅链接打不开
 
-如果 TCP `443` 不通，检查云防火墙/安全组和服务器公网 IP。
-
-### 订阅 URL 打不开
-
-检查 nginx 和 `8080`：
+检查订阅配置和 nginx：
 
 ```bash
-sudo systemctl is-active nginx
-sudo ss -ltnp | grep ':8080'
 sudo cat /opt/cloud-xray-terminal/subscription.env
+sudo systemctl status nginx --no-pager
+sudo ss -ltnp | grep ':8080'
 ```
 
-如果要从外部访问订阅，确认云防火墙允许 TCP `8080`。
+同时检查云平台安全组/防火墙是否允许 TCP `8080`。
 
-### 之前能用，突然失效
+### 节点之前能用，突然失效
 
-Reality target 可能随时间变得不适合。重跑脚本，它会自测已保存 target，并在失败时尝试 fallback：
+Reality target 可能变得不适合。重新运行脚本，让自测/fallback 自动选择可用 target：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
 ```
 
-必要时手动指定已知可用 target：
+然后在客户端里更新或重新导入订阅。
+
+### 公网 IP 变化
+
+如果服务器使用自动分配公网 IP，停止再启动实例后公网 IP 可能变化。
+
+在云平台控制台确认当前 Public IPv4，然后重新运行脚本生成新订阅：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo env \
-REALITY_DEST=www.cloudflare.com:443 \
-REALITY_SERVER_NAME=www.cloudflare.com \
-CLIENT_FINGERPRINT=chrome \
-bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
 ```
 
-### 一个客户端能用，另一个不能用
-
-检查客户端是否支持：
-
-```text
-VLESS
-Reality
-XTLS Vision / flow=xtls-rprx-vision
-uTLS / client fingerprint
-```
-
-Mihomo/Clash 类客户端请用 `/clash.yaml` 订阅。
-
-支持 URI-list 的客户端使用 `/sub/TOKEN`。
-
-### 服务器公网 IP 变了
-
-如果 VPS 公网 IP 改变，重跑脚本生成新的订阅：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal_realityv.sh | sudo bash
-```
-
-然后更新或重新导入客户端订阅。
+为了避免这个问题，可以使用 AWS Elastic IP 或对应云服务商的静态 IP。
 
 ## 卸载
 
-停止并删除 Xray 服务和生成文件：
+停止并禁用 Xray：
 
 ```bash
-sudo systemctl disable --now xray 2>/dev/null || true
+sudo systemctl disable --now xray
 sudo rm -f /etc/systemd/system/xray.service
-sudo rm -rf /opt/cloud-xray-terminal
-sudo rm -f /usr/local/etc/xray/config.json
 sudo systemctl daemon-reload
 ```
 
-删除脚本管理的 nginx 订阅站点：
+删除生成文件：
+
+```bash
+sudo rm -rf /opt/cloud-xray-terminal
+sudo rm -rf /usr/local/etc/xray
+```
+
+如果启用了订阅，删除脚本管理的 nginx 配置：
 
 ```bash
 sudo rm -f /etc/nginx/sites-enabled/cloud-xray-terminal-subscription
 sudo rm -f /etc/nginx/sites-available/cloud-xray-terminal-subscription
-sudo nginx -t && sudo systemctl reload nginx
+sudo systemctl reload nginx || true
 ```
 
-上面的命令不会卸载 nginx，也不会删除 `/usr/local/bin/xray`。
+Xray 二进制文件安装在 `/usr/local/bin/xray`。只有确认不再使用它时再删除：
 
-## 安全注意
+```bash
+sudo rm -f /usr/local/bin/xray
+```
 
-- SSH `22` 端口尽量只允许自己的 IP。
-- 不要公开 `server-info.txt`、`reality.env`、`subscription.env` 或订阅 URL。
-- HTTP 订阅里包含完整客户端配置。
-- 尽量限制 TCP `8080` 的来源 IP。
-- 不要把服务器生成的密钥、订阅、配置文件提交到 GitHub。
+## 安全提醒
+
+不要把以下文件上传到公开仓库：
+
+```text
+/opt/cloud-xray-terminal/reality.env
+/opt/cloud-xray-terminal/subscription.env
+/opt/cloud-xray-terminal/server-info.txt
+/opt/cloud-xray-terminal/vless-uri.txt
+/opt/cloud-xray-terminal/clash.yaml
+*.pem
+```
+
+建议：
+
+- SSH `22` 端口只允许你自己的 IP。
+- 导入配置后，限制或关闭订阅端口 `8080`。
+- 不要分享订阅链接、VLESS 链接、UUID、Reality key 或 shortId。
+- 注意云服务器账单和流量使用。
 
 ## License
 
-MIT License.
+This project is released under the MIT License.
