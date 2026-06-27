@@ -94,13 +94,13 @@ cd %USERPROFILE%\Downloads
 Use this format:
 
 ```cmd
-ssh -i [KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]
+ssh -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]
 ```
 
 Example:
 
 ```cmd
-ssh -i raylink-key.pem ubuntu@18.175.219.66
+ssh -i key.pem ubuntu@192.168.1.1
 ```
 
 For Ubuntu cloud images, the default username is usually:
@@ -584,13 +584,13 @@ cd %USERPROFILE%\Downloads
 使用下面的命令格式：
 
 ```cmd
-ssh -i [KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]
+ssh -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]
 ```
 
 示例：
 
 ```cmd
-ssh -i raylink-key.pem ubuntu@18.175.219.66
+ssh -i key.pem ubuntu@192.168.1.1
 ```
 
 Ubuntu 云镜像默认用户名通常是：
@@ -697,7 +697,7 @@ scp -i %USERPROFILE%\Downloads\raylink-key.pem ubuntu@18.175.219.66:/opt/cloud-x
 scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-uri.txt %USERPROFILE%\Downloads\vless-uri.txt
 ```
 
-## 常用自定义参数
+## 部署时的常用自定义参数
 
 在 `bash` 前通过环境变量传参：
 
@@ -705,7 +705,7 @@ scp -i %USERPROFILE%\Downloads\[KEY_FILE].pem ubuntu@[SERVER_PUBLIC_IP]:/opt/clo
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env KEY=value bash
 ```
 
-### 自定义节点端口部署
+### 自定义节点端口
 
 例如使用 `8443` 端口：
 
@@ -715,7 +715,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 记得在安全组/防火墙里开放 TCP `8443`。
 
-### 关闭 HTTP 订阅部署
+### 关闭 HTTP 订阅
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env ENABLE_SUBSCRIPTION=false bash
@@ -723,7 +723,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 关闭订阅后，可以使用 `/opt/cloud-xray-terminal/` 里的本地配置文件。
 
-### 修改订阅端口部署
+### 修改订阅端口
 
 例如使用 `18080` 端口：
 
