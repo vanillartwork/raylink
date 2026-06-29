@@ -145,6 +145,7 @@ terminal_main() {
   # BEFORE loading defaults (defaults assign via :=, which would mark them set).
   ENABLE_SUBSCRIPTION_WAS_SET="${ENABLE_SUBSCRIPTION+x}"
   LISTEN_ADDRESS_WAS_SET="${LISTEN_ADDRESS+x}"
+  PUBLIC_IP_WAS_SET="${PUBLIC_IP+x}"
 
   local healthcheck_only="false"
   local arg

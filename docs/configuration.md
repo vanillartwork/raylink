@@ -134,6 +134,13 @@ target (the self-test/fallback still decides reachability). `XRAY_DNS_QUERY_STRA
 (`UseSystem` / `UseIPv4` / `UseIPv6`) is reserved for a future IPv6
 relay-by-hostname and is not rendered into the config yet.
 
+Note on `auto`: each run (including each health check) re-detects the public IP
+and prefers IPv4. If IPv4 detection transiently fails but IPv6 succeeds, a run
+could regenerate IPv6 subscription URLs. This is expected. **To pin the address
+family, set `PUBLIC_IP_VERSION=4` or `6`** (or pin `PUBLIC_IP` to a static
+address). Detection results are never persisted across health checks — only your
+explicit `PUBLIC_IP_VERSION` / `PUBLIC_IP` / `LISTEN_ADDRESS` choices are.
+
 ## Local metrics (debug)
 
 | Variable | Default | Purpose |

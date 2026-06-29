@@ -94,12 +94,16 @@ valid_public_ipv6() {
   else
     [ "${colons}" -eq 7 ] || return 1
   fi
-  # Reject non-global ranges (loopback, unspecified, link-local, ULA, multicast).
+  # Reject non-global ranges (loopback, unspecified, link-local, ULA, multicast,
+  # documentation, IPv4-mapped, NAT64 well-known prefix).
   case "${ip}" in
     ::1|::) return 1 ;;
     fe8*|fe9*|fea*|feb*) return 1 ;;                # fe80::/10 link-local
     fc*|fd*) return 1 ;;                            # fc00::/7 unique local
     ff*) return 1 ;;                                # ff00::/8 multicast
+    2001:db8:*|2001:0db8:*) return 1 ;;            # 2001:db8::/32 documentation
+    ::ffff:*) return 1 ;;                           # ::ffff:0:0/96 IPv4-mapped
+    64:ff9b:*) return 1 ;;                          # 64:ff9b::/96 NAT64
   esac
   return 0
 }

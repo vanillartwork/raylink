@@ -111,10 +111,20 @@ sudo ss -ltnp | grep -E ':(443|8080)'
 sudo cat /opt/cloud-xray-terminal/vless-uri.txt
 ```
 
+To test a bracketed IPv6 subscription URL with curl, pass `-g` so curl does not
+treat `[ ]` as glob syntax:
+
+```bash
+curl -g -I "http://[2001:db8::1]:8080/sub/TOKEN/clash.yaml"
+```
+
 If a client can't connect: confirm the client itself has IPv6, and that the
 cloud firewall allows inbound TCP 443/8080 over IPv6 (`::/0`). An IPv6-only
 server without NAT64 cannot reach IPv4-only Reality targets — let the
 self-test/fallback pick a dual-stack one (Cloudflare/Apple/Microsoft).
+
+`PUBLIC_IP_VERSION=auto` re-detects each run and prefers IPv4; if you saw a
+subscription URL unexpectedly switch families, pin `PUBLIC_IP_VERSION=4` or `6`.
 
 ## envsubst / template errors
 
