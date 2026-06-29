@@ -10,12 +10,6 @@ installs a periodic health check timer.
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- terminal
 ```
 
-The legacy one-liner still works and is equivalent:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
-```
-
 Pass configuration through environment variables:
 
 ```bash

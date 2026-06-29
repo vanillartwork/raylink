@@ -14,7 +14,7 @@ rc=0
 echo "== bash -n syntax check =="
 mapfile -t scripts < <(
   {
-    printf '%s\n' "${REPO_ROOT}/install.sh" "${REPO_ROOT}/terminal.sh"
+    printf '%s\n' "${REPO_ROOT}/install.sh"
     printf '%s\n' "${SRC_DIR}/raylink"
     find "${SRC_DIR}/lib" "${SRC_DIR}/commands" -type f -name '*.sh'
     find "${REPO_ROOT}/scripts" -type f -name '*.sh'

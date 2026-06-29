@@ -12,8 +12,8 @@ set -euo pipefail
 #
 # This script downloads the RayLink source tree, installs it under
 # RAYLINK_LIB_DIR, links the `raylink` CLI into PATH, and optionally runs a
-# command (defaults to no command when invoked directly, or `terminal` when
-# invoked through the backward-compatible terminal.sh entrypoint).
+# command (whatever is passed after `--`); with no command it just installs
+# the CLI and prints next steps.
 
 RAYLINK_REPO="${RAYLINK_REPO:-vanillartwork/raylink}"
 RAYLINK_REF="${RAYLINK_REF:-main}"

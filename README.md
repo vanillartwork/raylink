@@ -20,7 +20,6 @@ server, installs a `raylink` CLI into `PATH`, and runs the requested command.
 ```text
 raylink/
 ├── install.sh              # bootstrap: download + install the raylink CLI
-├── terminal.sh             # backward-compatible entrypoint (runs `raylink terminal`)
 ├── src/
 │   ├── raylink             # CLI dispatcher
 │   ├── commands/           # per-command orchestration (terminal.sh, …)
@@ -134,12 +133,6 @@ Run this command on the Linux server:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- terminal
-```
-
-The original one-liner still works and is equivalent:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
 ```
 
 After installation, the script prints the server information and subscription URLs. You can re-run or manage the node later with the installed CLI:
@@ -260,7 +253,7 @@ scp -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-u
 Pass environment variables before `bash`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env KEY=value bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env KEY=value bash -s -- terminal
 ```
 
 ### Custom node port
@@ -268,7 +261,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 Example: use port `8443` instead of `443`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env PORT=8443 bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env PORT=8443 bash -s -- terminal
 ```
 
 Remember to open TCP `8443` in the firewall/security group.
@@ -276,7 +269,7 @@ Remember to open TCP `8443` in the firewall/security group.
 ### Disable HTTP subscription hosting
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env ENABLE_SUBSCRIPTION=false bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env ENABLE_SUBSCRIPTION=false bash -s -- terminal
 ```
 
 When subscription hosting is disabled, use the local files under `/opt/cloud-xray-terminal/` instead.
@@ -284,7 +277,7 @@ When subscription hosting is disabled, use the local files under `/opt/cloud-xra
 ### Change subscription port
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env SUB_PORT=18080 bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env SUB_PORT=18080 bash -s -- terminal
 ```
 
 Open TCP `18080` in the firewall/security group if you need remote subscription access.
@@ -292,11 +285,11 @@ Open TCP `18080` in the firewall/security group if you need remote subscription 
 ### Choose a Reality target manually
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env \
 REALITY_DEST=www.cloudflare.com:443 \
 REALITY_SERVER_NAME=www.cloudflare.com \
 CLIENT_FINGERPRINT=chrome \
-bash
+bash -s -- terminal
 ```
 
 ### Disable the periodic health check timer
@@ -304,7 +297,7 @@ bash
 The full installer enables a lightweight systemd timer by default. To skip installing the timer:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env ENABLE_HEALTHCHECK_TIMER=false bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env ENABLE_HEALTHCHECK_TIMER=false bash -s -- terminal
 ```
 
 ### Change the health check schedule
@@ -322,10 +315,10 @@ This means the node checks itself 10 minutes after boot, then every 24 hours aft
 You can change these values with systemd timer duration values:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env \
 HEALTHCHECK_ON_BOOT_SEC=5min \
 HEALTHCHECK_ON_UNIT_ACTIVE_SEC=12h \
-bash
+bash -s -- terminal
 ```
 
 You can also manually run one health check after installation:
@@ -365,15 +358,15 @@ www.microsoft.com:443|www.microsoft.com|chrome
 Custom candidate list:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env \
 REALITY_TARGET_CANDIDATES='www.cloudflare.com:443|www.cloudflare.com|chrome www.apple.com:443|www.apple.com|safari' \
-bash
+bash -s -- terminal
 ```
 
 Disable self-test only when you know what you are doing:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env REALITY_SELF_TEST=false bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env REALITY_SELF_TEST=false bash -s -- terminal
 ```
 
 ### Xray JSON and client import formats
@@ -449,7 +442,7 @@ sudo journalctl -u raylink-terminal-healthcheck.service -n 80 --no-pager
 Example:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env DNS_PROFILE=domestic bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env DNS_PROFILE=domestic bash -s -- terminal
 ```
 
 ## Re-running the script
@@ -468,13 +461,13 @@ It normally keeps:
 Regenerate Reality credentials:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env RESET_REALITY_CREDENTIALS=true bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env RESET_REALITY_CREDENTIALS=true bash -s -- terminal
 ```
 
 Regenerate only the subscription token:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env RESET_SUB_TOKEN=true bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env RESET_SUB_TOKEN=true bash -s -- terminal
 ```
 
 ## Useful service commands
@@ -588,7 +581,7 @@ Also check that TCP `8080` is allowed by the cloud firewall/security group.
 Reality targets can become unsuitable. Re-run the script and let the self-test/fallback select a working target:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- terminal
 ```
 
 Then update or re-import the subscription in your client.
@@ -687,7 +680,6 @@ CLI 到 `PATH`，再运行所请求的命令。
 ```text
 raylink/
 ├── install.sh              # 引导安装器：下载并安装 raylink CLI
-├── terminal.sh             # 向后兼容入口（等价于 `raylink terminal`）
 ├── src/
 │   ├── raylink             # CLI 调度器
 │   ├── commands/           # 各命令编排（terminal.sh 等）
@@ -801,12 +793,6 @@ ubuntu
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- terminal
-```
-
-原来的一键命令仍然有效，效果等价：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
 ```
 
 安装完成后，脚本会输出服务器信息和订阅链接。之后可以用安装好的 CLI 管理节点：
@@ -926,7 +912,7 @@ scp -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:/opt/cloud-xray-terminal/vless-u
 在 `bash` 前通过环境变量传参：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env KEY=value bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env KEY=value bash -s -- terminal
 ```
 
 ### 自定义节点端口
@@ -934,7 +920,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 例如使用 `8443` 端口：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env PORT=8443 bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env PORT=8443 bash -s -- terminal
 ```
 
 记得在安全组/防火墙里开放 TCP `8443`。
@@ -942,7 +928,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 ### 关闭 HTTP 订阅
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env ENABLE_SUBSCRIPTION=false bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env ENABLE_SUBSCRIPTION=false bash -s -- terminal
 ```
 
 关闭订阅后，可以使用 `/opt/cloud-xray-terminal/` 里的本地配置文件。
@@ -952,7 +938,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 例如使用 `18080` 端口：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env SUB_PORT=18080 bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env SUB_PORT=18080 bash -s -- terminal
 ```
 
 如果需要远程访问订阅链接，记得开放 TCP `18080`。
@@ -960,11 +946,11 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 ### 手动指定 Reality target
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env \
 REALITY_DEST=www.cloudflare.com:443 \
 REALITY_SERVER_NAME=www.cloudflare.com \
 CLIENT_FINGERPRINT=chrome \
-bash
+bash -s -- terminal
 ```
 
 ### 关闭定期自检 timer
@@ -972,7 +958,7 @@ bash
 完整安装默认会启用一个轻量级 systemd timer。如果不想安装 timer，可以运行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env ENABLE_HEALTHCHECK_TIMER=false bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env ENABLE_HEALTHCHECK_TIMER=false bash -s -- terminal
 ```
 
 ### 修改自检计划
@@ -990,10 +976,10 @@ OnUnitActiveSec=24h
 可以用 systemd timer 的 duration 格式修改：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env \
 HEALTHCHECK_ON_BOOT_SEC=5min \
 HEALTHCHECK_ON_UNIT_ACTIVE_SEC=12h \
-bash
+bash -s -- terminal
 ```
 
 安装后也可以手动运行一次自检：
@@ -1033,15 +1019,15 @@ www.microsoft.com:443|www.microsoft.com|chrome
 自定义候选列表：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env \
 REALITY_TARGET_CANDIDATES='www.cloudflare.com:443|www.cloudflare.com|chrome www.apple.com:443|www.apple.com|safari' \
-bash
+bash -s -- terminal
 ```
 
 只有你明确知道自己在做什么时，才建议关闭自测：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env REALITY_SELF_TEST=false bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env REALITY_SELF_TEST=false bash -s -- terminal
 ```
 
 ### Xray JSON 和客户端导入格式
@@ -1117,7 +1103,7 @@ sudo journalctl -u raylink-terminal-healthcheck.service -n 80 --no-pager
 示例：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env DNS_PROFILE=domestic bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env DNS_PROFILE=domestic bash -s -- terminal
 ```
 
 ## 重新运行脚本
@@ -1136,13 +1122,13 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 重新生成 Reality 凭据：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env RESET_REALITY_CREDENTIALS=true bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env RESET_REALITY_CREDENTIALS=true bash -s -- terminal
 ```
 
 只重新生成订阅 token：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env RESET_SUB_TOKEN=true bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env RESET_SUB_TOKEN=true bash -s -- terminal
 ```
 
 ## 常用服务命令
@@ -1256,7 +1242,7 @@ sudo ss -ltnp | grep ':8080'
 Reality target 可能变得不适合。重新运行脚本，让自测/fallback 自动选择可用 target：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- terminal
 ```
 
 然后在客户端里更新或重新导入订阅。
