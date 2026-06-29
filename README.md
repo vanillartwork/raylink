@@ -1311,7 +1311,7 @@ sudo rm -f /usr/local/bin/xray
 - 不要分享订阅链接、VLESS 链接、UUID、Reality key 或 shortId。
 - 注意云服务器账单和流量使用。
 
-## License
+## 许可
 
 This project is released under the MIT License.
                                                                                                                           
