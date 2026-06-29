@@ -293,7 +293,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 ### Change the health check schedule
 
-The default health check timer is monotonic, not calendar-based:
+The default health check timer is monotonic:
 
 ```ini
 [Timer]
@@ -301,7 +301,7 @@ OnBootSec=10min
 OnUnitActiveSec=24h
 ```
 
-This means the node checks itself 10 minutes after boot, then every 24 hours after the previous health check. It does not run again just because the clock passes midnight.
+This means the node checks itself 10 minutes after boot, then every 24 hours after the previous health check.
 
 You can change these values with systemd timer duration values:
 
@@ -946,7 +946,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 ### 修改自检计划
 
-默认自检 timer 使用 monotonic 计时，而不是每天固定日历时间：
+默认自检 timer 使用 monotonic 计时：
 
 ```ini
 [Timer]
@@ -954,7 +954,7 @@ OnBootSec=10min
 OnUnitActiveSec=24h
 ```
 
-也就是开机 10 分钟后自检一次，之后每次自检结束/触发后的 24 小时再运行下一次。它不会因为时间跨过 0 点就立刻重复运行。
+也就是开机 10 分钟后自检一次，之后每次自检结束/触发后的 24 小时再运行下一次。
 
 可以用 systemd timer 的 duration 格式修改：
 
