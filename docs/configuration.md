@@ -103,7 +103,7 @@ individual fields. Saved to `${INSTALL_DIR}/upstream.env`, never published.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `UPSTREAM_SUBSCRIPTION_URL` | _(empty)_ | Terminal `/sub/TOKEN/vless` URL; health check can re-fetch it |
+| `UPSTREAM_SUBSCRIPTION_URL` | _(empty)_ | Terminal Universal URI-list URL `http://IP:8080/sub/TOKEN` (returns the base64 `vless://` list; not the `/clash.yaml` endpoint); health check can re-fetch it |
 | `UPSTREAM_VLESS_URI` | _(empty)_ | A terminal `vless://…` link to parse |
 | `UPSTREAM_ADDRESS` | _(required)_ | Terminal IP or domain |
 | `UPSTREAM_PORT` | `443` | Terminal port |

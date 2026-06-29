@@ -40,11 +40,14 @@ A relay has two sets, kept strictly separate:
 
 The relay needs upstream parameters. Pick one of three ways, easiest last.
 
-Subscription URL (recommended — health check can auto-refresh it):
+Subscription URL (recommended — health check can auto-refresh it). Use the
+terminal's **Universal URI-list** endpoint (`/sub/TOKEN`), which returns the
+base64 VLESS URI list. Do **not** use the `/clash.yaml` endpoint here — the
+relay parses a `vless://` URI, not a Clash YAML.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh \
-  | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN/vless' bash -s -- relay
+  | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN' bash -s -- relay
 ```
 
 Terminal VLESS link:

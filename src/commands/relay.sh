@@ -124,6 +124,18 @@ run_relay_full_install() {
   require_root
   validate_common_ports
 
+  # Fail fast before installing anything if no upstream source was provided
+  # and none was previously saved.
+  if [ -z "${UPSTREAM_SUBSCRIPTION_URL:-}" ] && [ -z "${UPSTREAM_VLESS_URI:-}" ] \
+     && [ -z "${UPSTREAM_ADDRESS:-}" ] && [ ! -f "${UPSTREAM_ENV_FILE}" ]; then
+    echo "Error: a relay requires an upstream terminal node. Provide one of:"
+    echo "  UPSTREAM_SUBSCRIPTION_URL=http://TERMINAL_IP:8080/sub/TOKEN   (recommended)"
+    echo "  UPSTREAM_VLESS_URI='vless://...'                              (terminal link)"
+    echo "  UPSTREAM_ADDRESS=.. UPSTREAM_UUID=.. UPSTREAM_PUBLIC_KEY=..   (individual fields)"
+    echo "Nothing was installed. See docs/relay.md."
+    exit 1
+  fi
+
   echo "=========================================="
   echo " Xray VLESS Reality Relay Setup"
   echo "=========================================="

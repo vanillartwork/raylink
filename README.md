@@ -149,7 +149,7 @@ requires a working terminal as upstream. On the relay server:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh \
-  | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN/vless' bash -s -- relay
+  | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN' bash -s -- relay
 ```
 
 You can also pass the terminal's `UPSTREAM_VLESS_URI` or the individual
@@ -166,9 +166,6 @@ http://SERVER_IP:8080/sub/TOKEN
 
 Mihomo / Clash Meta:
 http://SERVER_IP:8080/sub/TOKEN/clash.yaml
-
-VLESS URI-list:
-http://SERVER_IP:8080/sub/TOKEN/vless
 ```
 
 Use:
@@ -808,7 +805,7 @@ sudo raylink terminal --health-check  # 运行一次自检
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh \
-  | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN/vless' bash -s -- relay
+  | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN' bash -s -- relay
 ```
 
 也可以改用 terminal 的 `UPSTREAM_VLESS_URI` 或单独的 `UPSTREAM_*` 字段。客户端
@@ -824,9 +821,6 @@ http://SERVER_IP:8080/sub/TOKEN
 
 Mihomo / Clash Meta:
 http://SERVER_IP:8080/sub/TOKEN/clash.yaml
-
-VLESS URI-list:
-http://SERVER_IP:8080/sub/TOKEN/vless
 ```
 
 推荐这样导入：
@@ -1320,3 +1314,4 @@ sudo rm -f /usr/local/bin/xray
 ## License
 
 This project is released under the MIT License.
+                                                                                                                          
