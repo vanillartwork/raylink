@@ -6,7 +6,7 @@
 
 # English
 
-RayLink is a script for one-click deployment of a personal Xray VPN node on a Linux server.
+RayLink is a modular installer and CLI for deploying and maintaining personal Xray-based proxy nodes on Linux servers.
 
 The installer installs Xray, creates a systemd service, generates persistent VLESS Reality credentials, optionally publishes subscription files through nginx, runs a local Reality self-test before printing the client import information, and can install a lightweight periodic health check timer.
 
@@ -665,7 +665,7 @@ This project is released under the MIT License.
 
 # 中文
 
-RayLink 是一个用于在 Linux 服务器上一键部署 Xray 个人 VPN 节点的脚本。
+RayLink 是一个用于在 Linux 服务器上部署和维护个人 Xray 代理节点的模块化安装器与命令行工具。
 
 安装器会安装 Xray，创建 systemd 服务，生成并保存 VLESS Reality 连接参数，根据需要通过 nginx 提供订阅链接，在输出客户端配置前执行本机 Reality 自测，并可以安装一个轻量级定期自检 timer。
 
