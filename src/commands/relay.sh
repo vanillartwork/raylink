@@ -92,11 +92,9 @@ run_relay_healthcheck_mode() {
   detect_public_ip_and_resolve_dns
   load_existing_reality_credentials_for_healthcheck
 
-  # Refresh upstream from the terminal subscription if one is configured.
-  load_upstream_config
-  if [ -n "${UPSTREAM_SUBSCRIPTION_URL:-}" ]; then
-    refresh_upstream_from_subscription || true
-  fi
+  # Load the saved upstream and best-effort refresh from the subscription.
+  # A failed refresh keeps the existing saved upstream (no service disruption).
+  load_upstream_for_healthcheck
   validate_upstream_config
   save_upstream_env
 
@@ -124,15 +122,13 @@ run_relay_full_install() {
   require_root
   validate_common_ports
 
-  # Fail fast before installing anything if no upstream source was provided
-  # and none was previously saved.
-  if [ -z "${UPSTREAM_SUBSCRIPTION_URL:-}" ] && [ -z "${UPSTREAM_VLESS_URI:-}" ] \
-     && [ -z "${UPSTREAM_ADDRESS:-}" ] && [ ! -f "${UPSTREAM_ENV_FILE}" ]; then
-    echo "Error: a relay requires an upstream terminal node. Provide one of:"
-    echo "  UPSTREAM_SUBSCRIPTION_URL=http://TERMINAL_IP:8080/sub/TOKEN   (recommended)"
-    echo "  UPSTREAM_VLESS_URI='vless://...'                              (terminal link)"
-    echo "  UPSTREAM_ADDRESS=.. UPSTREAM_UUID=.. UPSTREAM_PUBLIC_KEY=..   (individual fields)"
-    echo "Nothing was installed. See docs/relay.md."
+  # Fail fast before installing anything ONLY if there is no upstream input
+  # this run AND no usable saved upstream. A re-run with no new input safely
+  # reuses /opt/cloud-xray-relay/upstream.env (idempotent, like terminal).
+  if ! has_upstream_input && ! has_saved_upstream_config; then
+    echo "Error: no upstream terminal provided and none saved on this server."
+    print_missing_upstream_help
+    echo "Nothing was installed."
     exit 1
   fi
 
@@ -143,36 +139,40 @@ run_relay_full_install() {
   echo "[1/13] Installing required packages..."
   install_required_packages
 
-  echo "[2/13] Applying TCP tuning..."
-  apply_tcp_tuning
-
-  echo "[3/13] Preparing directories..."
+  echo "[2/13] Preparing directories..."
   mkdir -p "${INSTALL_DIR}" "${XRAY_CONFIG_DIR}" "${XRAY_SHARE_DIR}"
 
-  echo "[4/13] Detecting public IPv4 and selecting DNS profile..."
+  echo "[3/13] Detecting public IPv4 and selecting DNS profile..."
   detect_public_ip_and_resolve_dns
 
-  echo "[5/13] Stopping any existing relay service on this port..."
-  systemctl stop "${XRAY_SERVICE}" >/dev/null 2>&1 || true
-
-  echo "[6/13] Installing Xray-core..."
-  install_xray
-
-  echo "[7/13] Loading or generating relay inbound VLESS/Reality credentials..."
-  load_or_generate_reality_credentials
-
-  echo "[8/13] Loading upstream terminal parameters..."
-  load_upstream_config
+  # Validate the upstream BEFORE touching Xray, the running relay service, or
+  # any live config. If this fails we exit having changed nothing that affects
+  # a currently-working relay.
+  echo "[4/13] Loading and validating upstream terminal parameters..."
+  load_upstream_for_install
   validate_upstream_config
-  save_upstream_env
   echo "Upstream terminal: ${UPSTREAM_ADDRESS}:${UPSTREAM_PORT} (SNI ${UPSTREAM_SERVER_NAME})"
 
-  echo "[9/13] Checking relay inbound Reality target..."
+  echo "[5/13] Installing Xray-core..."
+  install_xray
+
+  echo "[6/13] Loading or generating relay inbound VLESS/Reality credentials..."
+  load_or_generate_reality_credentials
+
+  echo "[7/13] Validating relay inbound config..."
+  validate_reality_inputs
+
+  echo "[8/13] Checking relay inbound Reality target..."
   check_reality_target
 
-  echo "[10/13] Writing relay Xray config and systemd service..."
+  echo "[9/13] Applying TCP tuning..."
+  apply_tcp_tuning
+
+  # All inputs validated. Only now do we persist upstream.env and (re)write the
+  # live service config; the previously running relay was untouched until here.
+  echo "[10/13] Saving upstream and writing relay Xray config and systemd service..."
+  save_upstream_env
   ensure_xray_service_identity
-  validate_reality_inputs
   write_relay_xray_config
   write_xray_service
 

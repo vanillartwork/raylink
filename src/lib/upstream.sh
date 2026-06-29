@@ -102,38 +102,91 @@ refresh_upstream_from_subscription() {
   fi
 }
 
-# Populate UPSTREAM_* from saved state and this-run inputs, in priority order.
-load_upstream_config() {
-  UPSTREAM_CHANGED="${UPSTREAM_CHANGED:-false}"
+# True if the user supplied an upstream source on THIS run (env vars).
+has_upstream_input() {
+  [ -n "${UPSTREAM_VLESS_URI:-}" ] || [ -n "${UPSTREAM_SUBSCRIPTION_URL:-}" ] || [ -n "${UPSTREAM_ADDRESS:-}" ]
+}
 
-  # 1) Fill from the saved env file without overriding values set this run.
-  if [ -f "${UPSTREAM_ENV_FILE}" ]; then
-    UPSTREAM_ADDRESS="${UPSTREAM_ADDRESS:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_ADDRESS)}"
-    UPSTREAM_PORT="${UPSTREAM_PORT:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_PORT)}"
-    UPSTREAM_UUID="${UPSTREAM_UUID:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_UUID)}"
-    UPSTREAM_FLOW="${UPSTREAM_FLOW:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_FLOW)}"
-    UPSTREAM_SERVER_NAME="${UPSTREAM_SERVER_NAME:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_SERVER_NAME)}"
-    UPSTREAM_FINGERPRINT="${UPSTREAM_FINGERPRINT:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_FINGERPRINT)}"
-    UPSTREAM_PUBLIC_KEY="${UPSTREAM_PUBLIC_KEY:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_PUBLIC_KEY)}"
-    UPSTREAM_SHORT_ID="${UPSTREAM_SHORT_ID:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_SHORT_ID)}"
-    UPSTREAM_SUBSCRIPTION_URL="${UPSTREAM_SUBSCRIPTION_URL:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_SUBSCRIPTION_URL)}"
-  fi
+# True if a complete upstream is already saved on disk from a previous run.
+has_saved_upstream_config() {
+  [ -f "${UPSTREAM_ENV_FILE}" ] || return 1
+  [ -n "$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_ADDRESS)" ] \
+    && [ -n "$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_UUID)" ] \
+    && [ -n "$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_PUBLIC_KEY)" ]
+}
 
-  # 2) An explicit VLESS URI passed this run overrides everything.
-  if [ -n "${UPSTREAM_VLESS_URI:-}" ]; then
-    parse_upstream_vless_uri "${UPSTREAM_VLESS_URI}"
-  # 3) Otherwise, if a subscription URL is known and core fields are still
-  #    missing, fetch them from the terminal subscription.
-  elif [ -n "${UPSTREAM_SUBSCRIPTION_URL:-}" ] && \
-       { [ -z "${UPSTREAM_ADDRESS:-}" ] || [ -z "${UPSTREAM_UUID:-}" ] || [ -z "${UPSTREAM_PUBLIC_KEY:-}" ]; }; then
-    refresh_upstream_from_subscription || true
-  fi
+print_missing_upstream_help() {
+  echo "A relay requires upstream terminal parameters. Provide one of:" >&2
+  echo "  UPSTREAM_SUBSCRIPTION_URL=http://TERMINAL_IP:8080/sub/TOKEN   (recommended)" >&2
+  echo "  UPSTREAM_VLESS_URI='vless://...'                              (terminal link)" >&2
+  echo "  UPSTREAM_ADDRESS=.. UPSTREAM_UUID=.. UPSTREAM_PUBLIC_KEY=..   (individual fields)" >&2
+  echo "See docs/relay.md." >&2
+}
 
-  # 4) Defaults for optional fields.
+_load_saved_upstream() {
+  [ -f "${UPSTREAM_ENV_FILE}" ] || return 0
+  UPSTREAM_ADDRESS="${UPSTREAM_ADDRESS:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_ADDRESS)}"
+  UPSTREAM_PORT="${UPSTREAM_PORT:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_PORT)}"
+  UPSTREAM_UUID="${UPSTREAM_UUID:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_UUID)}"
+  UPSTREAM_FLOW="${UPSTREAM_FLOW:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_FLOW)}"
+  UPSTREAM_SERVER_NAME="${UPSTREAM_SERVER_NAME:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_SERVER_NAME)}"
+  UPSTREAM_FINGERPRINT="${UPSTREAM_FINGERPRINT:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_FINGERPRINT)}"
+  UPSTREAM_PUBLIC_KEY="${UPSTREAM_PUBLIC_KEY:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_PUBLIC_KEY)}"
+  UPSTREAM_SHORT_ID="${UPSTREAM_SHORT_ID:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_SHORT_ID)}"
+  UPSTREAM_SUBSCRIPTION_URL="${UPSTREAM_SUBSCRIPTION_URL:-$(load_kv_file_var "${UPSTREAM_ENV_FILE}" UPSTREAM_SUBSCRIPTION_URL)}"
+}
+
+_apply_upstream_defaults() {
   UPSTREAM_PORT="${UPSTREAM_PORT:-443}"
   UPSTREAM_FLOW="${UPSTREAM_FLOW:-xtls-rprx-vision}"
   UPSTREAM_FINGERPRINT="${UPSTREAM_FINGERPRINT:-chrome}"
   UPSTREAM_SERVER_NAME="${UPSTREAM_SERVER_NAME:-${UPSTREAM_ADDRESS:-}}"
+}
+
+# Full install / manual reconfigure. Explicit input given this run WINS and
+# must succeed: a failed fetch/parse of explicitly-provided input is a hard
+# error and does NOT silently fall back to a previously saved upstream. Only
+# when no input is given this run do we reuse the saved upstream.env.
+load_upstream_for_install() {
+  UPSTREAM_CHANGED="false"
+
+  if has_upstream_input; then
+    if [ -n "${UPSTREAM_VLESS_URI:-}" ]; then
+      if ! parse_upstream_vless_uri "${UPSTREAM_VLESS_URI}"; then
+        print_missing_upstream_help
+        exit 1
+      fi
+    elif [ -n "${UPSTREAM_SUBSCRIPTION_URL:-}" ] && \
+         { [ -z "${UPSTREAM_ADDRESS:-}" ] || [ -z "${UPSTREAM_UUID:-}" ] || [ -z "${UPSTREAM_PUBLIC_KEY:-}" ]; }; then
+      if ! refresh_upstream_from_subscription; then
+        echo "Error: failed to fetch a valid upstream from ${UPSTREAM_SUBSCRIPTION_URL}." >&2
+        echo "Explicit input was given this run, so the existing saved upstream is NOT reused." >&2
+        print_missing_upstream_help
+        exit 1
+      fi
+    fi
+    # else: individual UPSTREAM_* fields were provided directly in the env.
+  else
+    _load_saved_upstream
+  fi
+
+  _apply_upstream_defaults
+}
+
+# Health check. Load the saved upstream, then best-effort refresh from the
+# subscription if one is configured. A failed refresh keeps the existing saved
+# upstream so a transient terminal/network blip does not break a working relay.
+load_upstream_for_healthcheck() {
+  UPSTREAM_CHANGED="false"
+  _load_saved_upstream
+
+  if [ -n "${UPSTREAM_SUBSCRIPTION_URL:-}" ]; then
+    if ! refresh_upstream_from_subscription; then
+      echo "Warning: upstream subscription refresh failed; keeping the existing saved upstream."
+    fi
+  fi
+
+  _apply_upstream_defaults
 }
 
 validate_upstream_config() {
