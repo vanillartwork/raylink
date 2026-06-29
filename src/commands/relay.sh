@@ -30,6 +30,10 @@ write_relay_healthcheck_env_file() {
     UPSTREAM_ENV_FILE "${UPSTREAM_ENV_FILE}" \
     UPSTREAM_SUBSCRIPTION_URL "${UPSTREAM_SUBSCRIPTION_URL:-}" \
     LISTEN_ADDRESS "${LISTEN_ADDRESS}" \
+    PUBLIC_IP_VERSION "${PUBLIC_IP_VERSION}" \
+    ENABLE_XRAY_METRICS "${ENABLE_XRAY_METRICS}" \
+    METRICS_LISTEN "${METRICS_LISTEN}" \
+    XRAY_DNS_QUERY_STRATEGY "${XRAY_DNS_QUERY_STRATEGY}" \
     ENABLE_TFO "${ENABLE_TFO}" \
     DNS_PROFILE "${DNS_PROFILE}" \
     AUTO_DNS_DOMESTIC_COUNTRIES "${AUTO_DNS_DOMESTIC_COUNTRIES}" \
@@ -257,8 +261,9 @@ relay_map_inbound_aliases() {
 }
 
 relay_main() {
-  # Capture before defaults assign ENABLE_SUBSCRIPTION via :=.
+  # Capture before defaults assign these via :=.
   ENABLE_SUBSCRIPTION_WAS_SET="${ENABLE_SUBSCRIPTION+x}"
+  LISTEN_ADDRESS_WAS_SET="${LISTEN_ADDRESS+x}"
 
   relay_map_inbound_aliases
 

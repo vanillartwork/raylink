@@ -141,9 +141,10 @@ run_full_install() {
 }
 
 terminal_main() {
-  # Capture whether ENABLE_SUBSCRIPTION was explicitly set BEFORE loading
-  # defaults (defaults assign it via :=, which would otherwise mark it set).
+  # Capture whether ENABLE_SUBSCRIPTION / LISTEN_ADDRESS were explicitly set
+  # BEFORE loading defaults (defaults assign via :=, which would mark them set).
   ENABLE_SUBSCRIPTION_WAS_SET="${ENABLE_SUBSCRIPTION+x}"
+  LISTEN_ADDRESS_WAS_SET="${LISTEN_ADDRESS+x}"
 
   local healthcheck_only="false"
   local arg

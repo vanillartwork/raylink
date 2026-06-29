@@ -2,7 +2,7 @@
 limit_req_zone $binary_remote_addr zone=${SUB_LIMIT_ZONE}:10m rate=${SUB_RATE_LIMIT};
 
 server {
-    listen ${SUB_PORT};
+    ${NGINX_LISTEN_DIRECTIVE}
     server_name _;
 
     root ${SUB_ROOT};

@@ -144,6 +144,17 @@ write_xray_service() {
     > "/etc/systemd/system/${XRAY_SERVICE}"
 }
 
+# Build the optional top-level "metrics" block (default off; localhost only).
+# Sets METRICS_BLOCK to either "" or a JSON snippet ending in ",\n" so it can be
+# spliced into the config just before "inbounds".
+build_metrics_block() {
+  METRICS_BLOCK=""
+  if is_true "${ENABLE_XRAY_METRICS:-false}"; then
+    printf -v METRICS_BLOCK '  "metrics": {\n    "tag": "metrics",\n    "listen": "%s"\n  },\n' \
+      "${METRICS_LISTEN:-127.0.0.1:11111}"
+  fi
+}
+
 write_xray_config() {
   mkdir -p "${XRAY_CONFIG_DIR}"
 
@@ -151,9 +162,10 @@ write_xray_config() {
   if is_true "${ENABLE_TFO}"; then
     TFO_JSON_VALUE="true"
   fi
+  build_metrics_block
 
   render_template "${RAYLINK_TEMPLATES}/xray/server.json.tmpl" \
-    LISTEN_ADDRESS PORT UUID FLOW TFO_JSON_VALUE REALITY_DEST REALITY_SERVER_NAME PRIVATE_KEY SHORT_ID \
+    METRICS_BLOCK LISTEN_ADDRESS PORT UUID FLOW TFO_JSON_VALUE REALITY_DEST REALITY_SERVER_NAME PRIVATE_KEY SHORT_ID \
     > "${XRAY_CONFIG}"
 
   chown root:"${XRAY_SERVICE_GROUP}" "${XRAY_CONFIG}" 2>/dev/null || true
@@ -171,9 +183,10 @@ write_relay_xray_config() {
   if is_true "${ENABLE_TFO}"; then
     TFO_JSON_VALUE="true"
   fi
+  build_metrics_block
 
   render_template "${RAYLINK_TEMPLATES}/xray/relay-server.json.tmpl" \
-    LISTEN_ADDRESS PORT UUID FLOW TFO_JSON_VALUE REALITY_DEST REALITY_SERVER_NAME PRIVATE_KEY SHORT_ID \
+    METRICS_BLOCK LISTEN_ADDRESS PORT UUID FLOW TFO_JSON_VALUE REALITY_DEST REALITY_SERVER_NAME PRIVATE_KEY SHORT_ID \
     UPSTREAM_ADDRESS UPSTREAM_PORT UPSTREAM_UUID UPSTREAM_FLOW UPSTREAM_SERVER_NAME \
     UPSTREAM_FINGERPRINT UPSTREAM_PUBLIC_KEY UPSTREAM_SHORT_ID \
     > "${XRAY_CONFIG}"

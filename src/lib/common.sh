@@ -77,6 +77,63 @@ detect_public_ipv4() {
   return 1
 }
 
+valid_public_ipv6() {
+  local ip="${1:-}"
+  local colons
+  ip="${ip%%%*}"                                    # strip a %zone-id suffix
+  ip="$(printf '%s' "${ip}" | tr 'A-F' 'a-f')"
+  # Only hex digits and colons.
+  printf '%s' "${ip}" | grep -Eq '^[0-9a-f:]+$' || return 1
+  # No group may exceed 4 hex digits.
+  printf '%s' "${ip}" | grep -Eq '[0-9a-f]{5,}' && return 1
+  # Structural sanity: a '::' compressed form (2-7 colons) or a full 8-group
+  # form (exactly 7 colons). This rejects junk like "abc:def".
+  colons="$(printf '%s' "${ip}" | tr -cd ':' | wc -c | tr -d ' ')"
+  if printf '%s' "${ip}" | grep -q '::'; then
+    { [ "${colons}" -ge 2 ] && [ "${colons}" -le 7 ]; } || return 1
+  else
+    [ "${colons}" -eq 7 ] || return 1
+  fi
+  # Reject non-global ranges (loopback, unspecified, link-local, ULA, multicast).
+  case "${ip}" in
+    ::1|::) return 1 ;;
+    fe8*|fe9*|fea*|feb*) return 1 ;;                # fe80::/10 link-local
+    fc*|fd*) return 1 ;;                            # fc00::/7 unique local
+    ff*) return 1 ;;                                # ff00::/8 multicast
+  esac
+  return 0
+}
+
+# Detect a public IPv6 address (pure detector; the PUBLIC_IP override is
+# handled by the orchestrator).
+detect_public_ipv6() {
+  local url ip
+  for url in \
+    "https://api6.ipify.org" \
+    "https://ipv6.icanhazip.com" \
+    "https://v6.ident.me" \
+    "https://ipv6.ip.sb"; do
+    ip="$(curl -6 -fsS -m 6 "${url}" 2>/dev/null | tr -d ' \r\n\t' | head -c 64 || true)"
+    if valid_public_ipv6 "${ip}"; then
+      printf '%s\n' "${ip}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# Bracket an IPv6 literal for use in a URI/URL authority; leave IPv4 and
+# hostnames untouched. e.g. 2001:db8::1 -> [2001:db8::1]; 1.2.3.4 -> 1.2.3.4
+format_host_for_uri() {
+  local host="${1:-}"
+  case "${host}" in
+    \[*\]) printf '%s' "${host}" ;;                # already bracketed
+    *:*)   printf '[%s]' "${host}" ;;              # contains ':' -> IPv6
+    *)     printf '%s' "${host}" ;;
+  esac
+}
+
 urlencode() {
   local old_lc="${LC_ALL:-}"
   local LC_ALL=C

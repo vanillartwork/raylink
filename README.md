@@ -278,6 +278,34 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.
 
 Open TCP `18080` in the firewall/security group if you need remote subscription access.
 
+### IPv6-only servers
+
+`PUBLIC_IP_VERSION=auto` (default) tries IPv4 first, then falls back to IPv6, so
+the IPv4 path is unchanged. On an IPv6-only VPS the node auto-detects an IPv6
+address, listens on `::` / `[::]:8080`, and brackets the address in the VLESS
+link and subscription URLs (`vless://uuid@[2001:db8::1]:443`,
+`http://[2001:db8::1]:8080/sub/TOKEN`). Force or pin it if needed:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env PUBLIC_IP_VERSION=6 bash -s -- terminal
+```
+
+Clients must have working IPv6, and the firewall must allow inbound TCP 443/8080
+over IPv6 (`::/0`). An IPv6-only server without NAT64 can't reach IPv4-only
+sites — let the self-test/fallback pick a dual-stack Reality target. See
+[docs/configuration.md](docs/configuration.md) and
+[docs/troubleshooting.md](docs/troubleshooting.md).
+
+### Local metrics (debugging)
+
+Expose Xray's debug endpoint on localhost only (`/debug/pprof/`, `/debug/vars`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env ENABLE_XRAY_METRICS=true bash -s -- terminal
+```
+
+Default off; never bind a public address. Inspect with `curl http://127.0.0.1:11111/debug/vars`.
+
 ### Choose a Reality target manually
 
 ```bash
@@ -934,6 +962,34 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.
 ```
 
 如果需要远程访问订阅链接，记得开放 TCP `18080`。
+
+### IPv6-only 服务器
+
+`PUBLIC_IP_VERSION=auto`（默认）会先检测 IPv4，失败再回退到 IPv6，所以 IPv4
+路径完全不变。在 IPv6-only VPS 上，节点会自动检测 IPv6 地址，监听 `::` /
+`[::]:8080`，并在 VLESS 链接和订阅 URL 里给地址加方括号
+（`vless://uuid@[2001:db8::1]:443`、`http://[2001:db8::1]:8080/sub/TOKEN`）。
+需要时可以强制或手动指定：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env PUBLIC_IP_VERSION=6 bash -s -- terminal
+```
+
+客户端必须有可用的 IPv6，安全组也要放行 IPv6 入站 TCP 443/8080（`::/0`）。没有
+NAT64 的 IPv6-only 服务器无法访问只有 IPv4 的网站——让 self-test/fallback 选择
+一个双栈 Reality target。详见
+[docs/configuration.md](docs/configuration.md) 和
+[docs/troubleshooting.md](docs/troubleshooting.md)。
+
+### 本地 metrics（调试）
+
+只在本机暴露 Xray 调试端点（`/debug/pprof/`、`/debug/vars`）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env ENABLE_XRAY_METRICS=true bash -s -- terminal
+```
+
+默认关闭；不要绑定公网地址。用 `curl http://127.0.0.1:11111/debug/vars` 查看。
 
 ### 手动指定 Reality target
 

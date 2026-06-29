@@ -59,11 +59,13 @@ configure_subscription() {
     exit 1
   fi
 
+  # PUBLIC_URL_HOST brackets IPv6 literals; equals PUBLIC_IP for IPv4/hostnames.
+  local url_host="${PUBLIC_URL_HOST:-${PUBLIC_IP}}"
   SUB_DIR="${SUB_ROOT}/sub/${SUB_TOKEN}"
-  SUBSCRIPTION_URL_UNIVERSAL="http://${PUBLIC_IP}:${SUB_PORT}/sub/${SUB_TOKEN}"
-  SUBSCRIPTION_URL_CLASH="http://${PUBLIC_IP}:${SUB_PORT}/sub/${SUB_TOKEN}/clash.yaml"
+  SUBSCRIPTION_URL_UNIVERSAL="http://${url_host}:${SUB_PORT}/sub/${SUB_TOKEN}"
+  SUBSCRIPTION_URL_CLASH="http://${url_host}:${SUB_PORT}/sub/${SUB_TOKEN}/clash.yaml"
   # Legacy alias kept in subscription.env.
-  SUBSCRIPTION_URL_VLESS="http://${PUBLIC_IP}:${SUB_PORT}/sub/${SUB_TOKEN}/vless"
+  SUBSCRIPTION_URL_VLESS="http://${url_host}:${SUB_PORT}/sub/${SUB_TOKEN}/vless"
 
   # Remove the old token directory when the token changes.
   if [ -n "${old_token}" ] && [ "${old_token}" != "${SUB_TOKEN}" ]; then
@@ -103,8 +105,15 @@ configure_subscription() {
   nginx_site_changed=false
   nginx_link_changed=false
 
+  # Family-aware listen directive: IPv4 keeps "listen PORT;"; IPv6 uses [::].
+  if [ "${PUBLIC_IP_FAMILY:-4}" = 6 ]; then
+    NGINX_LISTEN_DIRECTIVE="listen [::]:${SUB_PORT};"
+  else
+    NGINX_LISTEN_DIRECTIVE="listen ${SUB_PORT};"
+  fi
+
   render_template "${RAYLINK_TEMPLATES}/nginx/subscription.conf.tmpl" \
-    SUB_LIMIT_ZONE SUB_RATE_LIMIT SUB_PORT SUB_ROOT SUB_RATE_BURST \
+    SUB_LIMIT_ZONE SUB_RATE_LIMIT NGINX_LISTEN_DIRECTIVE SUB_ROOT SUB_RATE_BURST \
     > "${tmp_nginx_site}"
 
   if [ ! -f "${NGINX_SITE}" ] || ! cmp -s "${tmp_nginx_site}" "${NGINX_SITE}"; then

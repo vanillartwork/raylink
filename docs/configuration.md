@@ -115,6 +115,39 @@ individual fields. Saved to `${INSTALL_DIR}/upstream.env`, never published.
 | `UPSTREAM_FLOW` | `xtls-rprx-vision` | Upstream VLESS flow |
 | `UPSTREAM_ENV_FILE` | `${INSTALL_DIR}/upstream.env` | Where upstream params are saved |
 
+## Public IP family / IPv6-only servers
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PUBLIC_IP_VERSION` | `auto` | `auto` tries IPv4 then falls back to IPv6; force with `4` or `6` |
+| `PUBLIC_IP` | _(detected)_ | Override the detected address (IPv4 or IPv6) |
+
+On an IPv6-only server the node auto-detects an IPv6 address and adjusts: Xray
+listens on `::`, nginx uses `listen [::]:PORT;`, and the VLESS link and
+subscription URLs bracket the address — `vless://uuid@[2001:db8::1]:443` and
+`http://[2001:db8::1]:8080/sub/TOKEN`. The Clash `server` field keeps the bare
+(quoted) IPv6 literal. The IPv4 path is unchanged.
+
+Caveats: clients need working IPv6 connectivity, and an IPv6-only server without
+NAT64 / IPv4 egress cannot reach IPv4-only sites — pick a dual-stack Reality
+target (the self-test/fallback still decides reachability). `XRAY_DNS_QUERY_STRATEGY`
+(`UseSystem` / `UseIPv4` / `UseIPv6`) is reserved for a future IPv6
+relay-by-hostname and is not rendered into the config yet.
+
+## Local metrics (debug)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `ENABLE_XRAY_METRICS` | `false` | Expose Xray's metrics endpoint (`/debug/pprof/`, `/debug/vars` with stats + observatory) |
+| `METRICS_LISTEN` | `127.0.0.1:11111` | Bind address — keep it localhost-only |
+
+For your own debugging only; never bind a public address. Inspect with e.g.
+`curl http://127.0.0.1:11111/debug/vars`. Example:
+
+```bash
+sudo env ENABLE_XRAY_METRICS=true raylink terminal
+```
+
 ## Installer (bootstrap) variables
 
 These affect `install.sh`, not the node itself:

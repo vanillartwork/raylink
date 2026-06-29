@@ -91,6 +91,31 @@ sudo rm -f /etc/nginx/sites-available/cloud-xray-relay-subscription
 sudo systemctl reload nginx || true
 ```
 
+## IPv6-only server
+
+The installer auto-detects IPv6 when no IPv4 is available (`PUBLIC_IP_VERSION=auto`).
+If detection fails, set it explicitly:
+
+```bash
+sudo env PUBLIC_IP_VERSION=6 raylink terminal
+# or pin the address:
+sudo env PUBLIC_IP=2001:db8::1 raylink terminal
+```
+
+Then check that the generated links bracket the address
+(`vless://uuid@[2001:db8::1]:443`, `http://[2001:db8::1]:8080/sub/TOKEN`) and
+that nginx listens on `[::]`:
+
+```bash
+sudo ss -ltnp | grep -E ':(443|8080)'
+sudo cat /opt/cloud-xray-terminal/vless-uri.txt
+```
+
+If a client can't connect: confirm the client itself has IPv6, and that the
+cloud firewall allows inbound TCP 443/8080 over IPv6 (`::/0`). An IPv6-only
+server without NAT64 cannot reach IPv4-only Reality targets — let the
+self-test/fallback pick a dual-stack one (Cloudflare/Apple/Microsoft).
+
 ## envsubst / template errors
 
 The CLI renders systemd/nginx/xray/clash configs from `templates/` via

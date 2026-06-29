@@ -19,7 +19,8 @@ write_clash_config() {
 
 assemble_vless_uri() {
   URLENCODED_NODE_NAME="$(urlencode "${NODE_NAME}")"
-  VLESS_URI="vless://${UUID}@${PUBLIC_IP}:${PORT}?encryption=none&security=reality&sni=${REALITY_SERVER_NAME}&fp=${CLIENT_FINGERPRINT}&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=tcp&flow=${FLOW}#${URLENCODED_NODE_NAME}"
+  # PUBLIC_URI_HOST brackets IPv6 literals; equals PUBLIC_IP for IPv4/hostnames.
+  VLESS_URI="vless://${UUID}@${PUBLIC_URI_HOST:-${PUBLIC_IP}}:${PORT}?encryption=none&security=reality&sni=${REALITY_SERVER_NAME}&fp=${CLIENT_FINGERPRINT}&pbk=${PUBLIC_KEY}&sid=${SHORT_ID}&type=tcp&flow=${FLOW}#${URLENCODED_NODE_NAME}"
   printf '%s\n' "${VLESS_URI}" > "${VLESS_FILE}"
   chmod 644 "${VLESS_FILE}"
 }

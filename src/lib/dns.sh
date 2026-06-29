@@ -77,15 +77,65 @@ resolve_dns_profile() {
   echo "Server country detected: ${DNS_DETECTED_COUNTRY}"
 }
 
-# Detect the public IPv4 and resolve the effective DNS profile.
+# Detect the public IP (IPv4 preferred) and resolve the effective DNS profile.
 # Shared by the terminal and relay commands.
+#
+# PUBLIC_IP_VERSION=auto (default): try IPv4, fall back to IPv6.
+# PUBLIC_IP_VERSION=4 / 6: force a family. A user-provided PUBLIC_IP is
+# validated and its family auto-detected. Sets PUBLIC_IP_FAMILY (4/6) and the
+# derived PUBLIC_URI_HOST / PUBLIC_URL_HOST (bracketed for IPv6). On IPv4 the
+# derived hosts equal PUBLIC_IP, so the IPv4 path is unchanged.
 detect_public_ip_and_resolve_dns() {
-  PUBLIC_IP="$(detect_public_ipv4 || true)"
+  local ver
+  ver="$(printf '%s' "${PUBLIC_IP_VERSION:-auto}" | tr '[:upper:]' '[:lower:]')"
+
+  if [ -n "${PUBLIC_IP:-}" ]; then
+    if valid_public_ipv4 "${PUBLIC_IP}"; then
+      PUBLIC_IP_FAMILY=4
+    elif valid_public_ipv6 "${PUBLIC_IP}"; then
+      PUBLIC_IP_FAMILY=6
+    else
+      echo "Error: PUBLIC_IP is not a valid public IPv4 or IPv6 address: ${PUBLIC_IP}"
+      exit 1
+    fi
+  else
+    case "${ver}" in
+      4|ipv4|v4)
+        PUBLIC_IP="$(detect_public_ipv4 || true)"
+        PUBLIC_IP_FAMILY=4
+        ;;
+      6|ipv6|v6)
+        PUBLIC_IP="$(detect_public_ipv6 || true)"
+        PUBLIC_IP_FAMILY=6
+        ;;
+      *)
+        if PUBLIC_IP="$(detect_public_ipv4)"; then
+          PUBLIC_IP_FAMILY=4
+        elif PUBLIC_IP="$(detect_public_ipv6)"; then
+          PUBLIC_IP_FAMILY=6
+        else
+          PUBLIC_IP=""
+        fi
+        ;;
+    esac
+  fi
+
   if [ -z "${PUBLIC_IP}" ]; then
-    echo "Failed to detect public IPv4. You can rerun with PUBLIC_IP=x.x.x.x"
+    echo "Failed to detect a public IP address."
+    echo "Set PUBLIC_IP=<addr> (IPv4 or IPv6), or PUBLIC_IP_VERSION=4|6|auto."
     exit 1
   fi
-  echo "Public IPv4: ${PUBLIC_IP}"
+
+  # Derived authority hosts (IPv6 gets bracketed for URIs/URLs).
+  PUBLIC_URI_HOST="$(format_host_for_uri "${PUBLIC_IP}")"
+  PUBLIC_URL_HOST="${PUBLIC_URI_HOST}"
+
+  # When the user did not pin LISTEN_ADDRESS, bind :: on an IPv6 node.
+  if [ -z "${LISTEN_ADDRESS_WAS_SET:-}" ] && [ "${PUBLIC_IP_FAMILY}" = 6 ]; then
+    LISTEN_ADDRESS="::"
+  fi
+
+  echo "Public IP: ${PUBLIC_IP} (IPv${PUBLIC_IP_FAMILY})"
 
   resolve_dns_profile
 }
