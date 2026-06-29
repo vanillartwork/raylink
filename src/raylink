@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# RayLink CLI dispatcher.
+#
+# Resolves its own install location (following the symlink in PATH), sources
+# the shared library modules, and dispatches to a command under commands/.
+
+RAYLINK_SELF="${BASH_SOURCE[0]}"
+RAYLINK_SELF="$(readlink -f "${RAYLINK_SELF}" 2>/dev/null || printf '%s' "${RAYLINK_SELF}")"
+RAYLINK_ROOT="$(cd "$(dirname "${RAYLINK_SELF}")" && pwd)"
+export RAYLINK_ROOT
+export RAYLINK_LIB="${RAYLINK_ROOT}/lib"
+export RAYLINK_TEMPLATES="${RAYLINK_ROOT}/templates"
+export RAYLINK_DEFAULTS="${RAYLINK_ROOT}/defaults"
+export RAYLINK_COMMANDS="${RAYLINK_ROOT}/commands"
+
+RAYLINK_VERSION="$(cat "${RAYLINK_ROOT}/VERSION" 2>/dev/null || echo "dev")"
+
+# Source shared library modules (order matters: common first).
+for _mod in common dns xray reality subscription client_outputs healthcheck; do
+  # shellcheck source=/dev/null
+  . "${RAYLINK_LIB}/${_mod}.sh"
+done
+unset _mod
+
+usage() {
+  cat <<USAGE
+RayLink ${RAYLINK_VERSION} — one-command Xray VPN node deployer
+
+Usage:
+  raylink <command> [options]
+
+Commands:
+  terminal            Install / update a terminal (entry) Reality node.
+                      Options:
+                        --health-check   Run the lightweight health check only.
+  version             Print the RayLink version.
+  help                Show this help.
+
+Configuration is passed through environment variables, e.g.:
+  sudo env PORT=8443 ENABLE_SUBSCRIPTION=false raylink terminal
+
+See docs/ for the full configuration reference.
+USAGE
+}
+
+RAYLINK_COMMAND="${1:-help}"
+shift || true
+export RAYLINK_COMMAND
+
+case "${RAYLINK_COMMAND}" in
+  terminal)
+    # shellcheck source=/dev/null
+    . "${RAYLINK_COMMANDS}/terminal.sh"
+    terminal_main "$@"
+    ;;
+  version|--version|-v)
+    printf '%s\n' "${RAYLINK_VERSION}"
+    ;;
+  help|--help|-h)
+    usage
+    ;;
+  *)
+    echo "Unknown command: ${RAYLINK_COMMAND}" >&2
+    echo "" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
