@@ -1,0 +1,91 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "tag": "relay-in",
+      "listen": "${LISTEN_ADDRESS}",
+      "port": ${PORT},
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "${UUID}",
+            "flow": "${FLOW}"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "raw",
+        "security": "reality",
+        "sockopt": {
+          "tcpFastOpen": ${TFO_JSON_VALUE}
+        },
+        "realitySettings": {
+          "show": false,
+          "target": "${REALITY_DEST}",
+          "xver": 0,
+          "serverNames": [
+            "${REALITY_SERVER_NAME}"
+          ],
+          "privateKey": "${PRIVATE_KEY}",
+          "shortIds": [
+            "${SHORT_ID}"
+          ]
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "to-terminal",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "${UPSTREAM_ADDRESS}",
+            "port": ${UPSTREAM_PORT},
+            "users": [
+              {
+                "id": "${UPSTREAM_UUID}",
+                "encryption": "none",
+                "flow": "${UPSTREAM_FLOW}"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "raw",
+        "security": "reality",
+        "sockopt": {
+          "tcpFastOpen": ${TFO_JSON_VALUE}
+        },
+        "realitySettings": {
+          "serverName": "${UPSTREAM_SERVER_NAME}",
+          "fingerprint": "${UPSTREAM_FINGERPRINT}",
+          "password": "${UPSTREAM_PUBLIC_KEY}",
+          "shortId": "${UPSTREAM_SHORT_ID}",
+          "spiderX": "/"
+        }
+      }
+    },
+    {
+      "tag": "blocked",
+      "protocol": "blackhole"
+    }
+  ],
+  "routing": {
+    "rules": [
+      {
+        "type": "field",
+        "inboundTag": [
+          "relay-in"
+        ],
+        "outboundTag": "to-terminal"
+      }
+    ]
+  }
+}
