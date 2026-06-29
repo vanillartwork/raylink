@@ -104,7 +104,7 @@ ensure_xray_service_identity() {
 
 write_xray_service() {
   render_template "${RAYLINK_TEMPLATES}/systemd/xray.service.tmpl" \
-    XRAY_SERVICE_USER XRAY_SERVICE_GROUP XRAY_CONFIG_DIR INSTALL_DIR XRAY_BIN XRAY_CONFIG \
+    XRAY_SERVICE_DESC XRAY_SERVICE_USER XRAY_SERVICE_GROUP XRAY_CONFIG_DIR INSTALL_DIR XRAY_BIN XRAY_CONFIG \
     > "/etc/systemd/system/${XRAY_SERVICE}"
 }
 
@@ -118,6 +118,28 @@ write_xray_config() {
 
   render_template "${RAYLINK_TEMPLATES}/xray/server.json.tmpl" \
     LISTEN_ADDRESS PORT UUID FLOW TFO_JSON_VALUE REALITY_DEST REALITY_SERVER_NAME PRIVATE_KEY SHORT_ID \
+    > "${XRAY_CONFIG}"
+
+  chown root:"${XRAY_SERVICE_GROUP}" "${XRAY_CONFIG}" 2>/dev/null || true
+  chmod 640 "${XRAY_CONFIG}"
+}
+
+# Relay config: VLESS Reality inbound (relay-facing client params) plus a
+# VLESS Reality outbound to the upstream terminal, with routing that sends all
+# inbound traffic to the upstream. Inbound params reuse the standard variable
+# names (UUID, PRIVATE_KEY, ...); upstream params use UPSTREAM_* variables.
+write_relay_xray_config() {
+  mkdir -p "${XRAY_CONFIG_DIR}"
+
+  TFO_JSON_VALUE="false"
+  if is_true "${ENABLE_TFO}"; then
+    TFO_JSON_VALUE="true"
+  fi
+
+  render_template "${RAYLINK_TEMPLATES}/xray/relay-server.json.tmpl" \
+    LISTEN_ADDRESS PORT UUID FLOW TFO_JSON_VALUE REALITY_DEST REALITY_SERVER_NAME PRIVATE_KEY SHORT_ID \
+    UPSTREAM_ADDRESS UPSTREAM_PORT UPSTREAM_UUID UPSTREAM_FLOW UPSTREAM_SERVER_NAME \
+    UPSTREAM_FINGERPRINT UPSTREAM_PUBLIC_KEY UPSTREAM_SHORT_ID \
     > "${XRAY_CONFIG}"
 
   chown root:"${XRAY_SERVICE_GROUP}" "${XRAY_CONFIG}" 2>/dev/null || true

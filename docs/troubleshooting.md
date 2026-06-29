@@ -43,6 +43,54 @@ If your client's subscription URL uses the old raw IP, update the IP part of
 the URL in the client (the token stays the same). Use a static IP (e.g. AWS
 Elastic IP) or a domain to avoid this.
 
+## Relay: client connects but no internet
+
+The relay inbound is fine but the relay→terminal hop or the terminal itself is
+broken. Check, on the relay:
+
+```bash
+sudo systemctl status raylink-relay.service --no-pager
+sudo journalctl -u raylink-relay.service -n 80 --no-pager
+sudo cat /opt/cloud-xray-relay/upstream.env
+sudo raylink relay --health-check
+```
+
+Then verify the terminal is reachable from the relay (`TERMINAL_IP` / port from
+`upstream.env`) and that the terminal's firewall allows the relay's IP:
+
+```bash
+nc -vz TERMINAL_IP 443
+```
+
+If the terminal's public IP changed and `UPSTREAM_SUBSCRIPTION_URL` points at
+the old IP, update it and re-run `sudo raylink relay`, or use a static
+IP/domain for the terminal.
+
+## Relay: upstream parameters incomplete
+
+```text
+Error: upstream terminal parameters are incomplete.
+```
+
+Provide upstream params via `UPSTREAM_SUBSCRIPTION_URL`, `UPSTREAM_VLESS_URI`,
+or the individual `UPSTREAM_ADDRESS` / `UPSTREAM_UUID` / `UPSTREAM_PUBLIC_KEY`
+(plus `UPSTREAM_SERVER_NAME` / `UPSTREAM_SHORT_ID`). See [relay.md](relay.md).
+
+## Relay uninstall
+
+```bash
+sudo systemctl disable --now raylink-relay-healthcheck.timer 2>/dev/null || true
+sudo rm -f /etc/systemd/system/raylink-relay-healthcheck.{timer,service}
+sudo rm -f /etc/raylink-relay-healthcheck.env
+sudo systemctl disable --now raylink-relay.service
+sudo rm -f /etc/systemd/system/raylink-relay.service
+sudo systemctl daemon-reload
+sudo rm -rf /opt/cloud-xray-relay /usr/local/etc/raylink/relay-xray
+sudo rm -f /etc/nginx/sites-enabled/cloud-xray-relay-subscription
+sudo rm -f /etc/nginx/sites-available/cloud-xray-relay-subscription
+sudo systemctl reload nginx || true
+```
+
 ## envsubst / template errors
 
 The CLI renders systemd/nginx/xray/clash configs from `templates/` via

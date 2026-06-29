@@ -18,7 +18,7 @@ export RAYLINK_COMMANDS="${RAYLINK_ROOT}/commands"
 RAYLINK_VERSION="$(cat "${RAYLINK_ROOT}/VERSION" 2>/dev/null || echo "dev")"
 
 # Source shared library modules (order matters: common first).
-for _mod in common dns xray reality subscription client_outputs healthcheck; do
+for _mod in common dns xray reality subscription client_outputs healthcheck upstream; do
   # shellcheck source=/dev/null
   . "${RAYLINK_LIB}/${_mod}.sh"
 done
@@ -33,6 +33,12 @@ Usage:
 
 Commands:
   terminal            Install / update a terminal (entry) Reality node.
+                      Options:
+                        --health-check   Run the lightweight health check only.
+  relay               Install / update a relay node that forwards client
+                      traffic to an upstream terminal node.
+                      Requires upstream params (UPSTREAM_VLESS_URI,
+                      UPSTREAM_SUBSCRIPTION_URL, or UPSTREAM_* fields).
                       Options:
                         --health-check   Run the lightweight health check only.
   version             Print the RayLink version.
@@ -54,6 +60,11 @@ case "${RAYLINK_COMMAND}" in
     # shellcheck source=/dev/null
     . "${RAYLINK_COMMANDS}/terminal.sh"
     terminal_main "$@"
+    ;;
+  relay)
+    # shellcheck source=/dev/null
+    . "${RAYLINK_COMMANDS}/relay.sh"
+    relay_main "$@"
     ;;
   version|--version|-v)
     printf '%s\n' "${RAYLINK_VERSION}"

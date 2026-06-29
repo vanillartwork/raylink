@@ -1,29 +1,7 @@
 #!/usr/bin/env bash
 # RayLink terminal command: full install and lightweight health check.
-# Orchestration only; reusable logic lives in lib/*.sh.
-
-validate_common_ports() {
-  validate_port_number PORT "${PORT}"
-  if is_true "${ENABLE_SUBSCRIPTION}"; then
-    validate_port_number SUB_PORT "${SUB_PORT}"
-  fi
-
-  if is_true "${ENABLE_SUBSCRIPTION}" && [ "${SUB_PORT}" = "${PORT}" ]; then
-    echo "SUB_PORT must be different from PORT. Current value: ${SUB_PORT}"
-    exit 1
-  fi
-}
-
-detect_public_ip_and_resolve_dns() {
-  PUBLIC_IP="$(detect_public_ipv4 || true)"
-  if [ -z "${PUBLIC_IP}" ]; then
-    echo "Failed to detect public IPv4. You can rerun with PUBLIC_IP=x.x.x.x"
-    exit 1
-  fi
-  echo "Public IPv4: ${PUBLIC_IP}"
-
-  resolve_dns_profile
-}
+# Orchestration only; reusable logic lives in lib/*.sh
+# (validate_common_ports -> common.sh, detect_public_ip_and_resolve_dns -> dns.sh).
 
 run_healthcheck_mode() {
   require_root

@@ -77,6 +77,19 @@ resolve_dns_profile() {
   echo "Server country detected: ${DNS_DETECTED_COUNTRY}"
 }
 
+# Detect the public IPv4 and resolve the effective DNS profile.
+# Shared by the terminal and relay commands.
+detect_public_ip_and_resolve_dns() {
+  PUBLIC_IP="$(detect_public_ipv4 || true)"
+  if [ -z "${PUBLIC_IP}" ]; then
+    echo "Failed to detect public IPv4. You can rerun with PUBLIC_IP=x.x.x.x"
+    exit 1
+  fi
+  echo "Public IPv4: ${PUBLIC_IP}"
+
+  resolve_dns_profile
+}
+
 write_dns_config() {
   local profile="${DNS_EFFECTIVE_PROFILE:-mixed}"
   local dns_file="${RAYLINK_TEMPLATES}/clash/dns/${profile}.yaml"

@@ -34,7 +34,7 @@ write_uri_list_sub() {
 write_info_file() {
   cat > "${INFO_FILE}" <<INFO_EOF
 Server information:
-Node role: Terminal
+Node role: ${NODE_ROLE:-Terminal}
 Server type: Xray VLESS Reality
 Server IP: ${PUBLIC_IP}
 Port: ${PORT}
@@ -102,7 +102,7 @@ INFO_SUB_EOF
 
 Subscription:
   Enabled: false
-  To re-enable: sudo raylink terminal (with ENABLE_SUBSCRIPTION=true)
+  To re-enable: sudo raylink ${RAYLINK_COMMAND:-terminal} (with ENABLE_SUBSCRIPTION=true)
 INFO_SUB_EOF
   fi
 

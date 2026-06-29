@@ -104,7 +104,7 @@ configure_subscription() {
   nginx_link_changed=false
 
   render_template "${RAYLINK_TEMPLATES}/nginx/subscription.conf.tmpl" \
-    SUB_RATE_LIMIT SUB_PORT SUB_ROOT SUB_RATE_BURST \
+    SUB_LIMIT_ZONE SUB_RATE_LIMIT SUB_PORT SUB_ROOT SUB_RATE_BURST \
     > "${tmp_nginx_site}"
 
   if [ ! -f "${NGINX_SITE}" ] || ! cmp -s "${tmp_nginx_site}" "${NGINX_SITE}"; then

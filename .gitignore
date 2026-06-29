@@ -1,0 +1,13 @@
+# Build artifacts
+/dist/
+
+# Local secrets / generated node state (never commit)
+*.env
+!src/defaults/*.env
+reality.env
+subscription.env
+server-info.txt
+vless-uri.txt
+vless-uri-list
+clash.yaml
+*.pem

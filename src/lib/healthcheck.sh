@@ -55,12 +55,14 @@ install_healthcheck_timer() {
     return 0
   fi
 
-  write_healthcheck_env_file
+  # Persist the runtime environment for the timer-invoked run. The writer is
+  # role-specific (terminal vs relay) and defaults to the terminal writer.
+  "${HEALTHCHECK_ENV_WRITER:-write_healthcheck_env_file}"
 
   # In the modular layout the health check runs the installed CLI directly;
   # there is no self-copy. The CLI lives on disk under RAYLINK_LIB_DIR and is
-  # linked at RAYLINK_CLI.
-  HEALTHCHECK_EXEC="${RAYLINK_CLI} terminal --health-check"
+  # linked at RAYLINK_CLI. RAYLINK_COMMAND is set by the dispatcher (terminal/relay).
+  HEALTHCHECK_EXEC="${RAYLINK_CLI} ${RAYLINK_COMMAND:-terminal} --health-check"
 
   render_template "${RAYLINK_TEMPLATES}/systemd/healthcheck.service.tmpl" \
     XRAY_SERVICE HEALTHCHECK_ENV_FILE HEALTHCHECK_EXEC \

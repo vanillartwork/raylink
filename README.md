@@ -14,7 +14,7 @@ Use this project only for legal and compliant network access. Cloud servers and 
 
 ## Project layout
 
-A bootstrap installer downloads the source tree to the
+RayLink is now modular. A bootstrap installer downloads the source tree to the
 server, installs a `raylink` CLI into `PATH`, and runs the requested command.
 
 ```text
@@ -51,6 +51,7 @@ for the full variable reference.
 | Reality self-test | `true` |
 | Reality auto fallback | `true` |
 | Periodic health check timer | `true` |
+| Health check schedule | `OnBootSec=10min`, then `OnUnitActiveSec=24h` |
 
 Traffic path:
 
@@ -147,6 +148,21 @@ After installation, the script prints the server information and subscription UR
 sudo raylink terminal                 # re-run / update (safe)
 sudo raylink terminal --health-check  # run a health check
 ```
+
+## Relay node (optional)
+
+A relay forwards client traffic to an existing terminal node, hiding the
+terminal behind one extra hop (Client → Relay → Terminal → Internet). It
+requires a working terminal as upstream. On the relay server:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh \
+  | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN/vless' bash -s -- relay
+```
+
+You can also pass the terminal's `UPSTREAM_VLESS_URI` or the individual
+`UPSTREAM_*` fields instead. Clients only ever see the relay. Full details in
+[docs/relay.md](docs/relay.md).
 
 ## Import into clients
 
@@ -293,7 +309,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 ### Change the health check schedule
 
-The default health check timer is monotonic:
+The default health check timer is monotonic, not calendar-based:
 
 ```ini
 [Timer]
@@ -301,7 +317,7 @@ OnBootSec=10min
 OnUnitActiveSec=24h
 ```
 
-This means the node checks itself 10 minutes after boot, then every 24 hours after the previous health check.
+This means the node checks itself 10 minutes after boot, then every 24 hours after the previous health check. It does not run again just because the clock passes midnight.
 
 You can change these values with systemd timer duration values:
 
@@ -665,7 +681,7 @@ RayLink 是一个用于在 Linux 服务器上一键部署 Xray 个人 VPN 节点
 
 ## 工程结构
 
-引导安装器会把源码下载到服务器，安装一个 `raylink`
+RayLink 已经工程化拆分。引导安装器会把源码下载到服务器，安装一个 `raylink`
 CLI 到 `PATH`，再运行所请求的命令。
 
 ```text
@@ -702,6 +718,7 @@ raylink/
 | Reality 本机自测 | `true` |
 | Reality 自动 fallback | `true` |
 | 定期自检 timer | `true` |
+| 自检计划 | 开机 `10min` 后运行一次，之后每 `24h` 运行一次 |
 
 流量路径：
 
@@ -798,6 +815,20 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 sudo raylink terminal                 # 重新运行 / 更新（安全）
 sudo raylink terminal --health-check  # 运行一次自检
 ```
+
+## Relay 中转节点（可选）
+
+Relay 把客户端流量转发到一个已有的 terminal 节点，让 terminal 藏在一跳中转之后
+（客户端 → Relay → Terminal → 互联网）。它需要一个可用的 terminal 作为上游。
+在 relay 服务器上运行：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh \
+  | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN/vless' bash -s -- relay
+```
+
+也可以改用 terminal 的 `UPSTREAM_VLESS_URI` 或单独的 `UPSTREAM_*` 字段。客户端
+只会看到 relay。完整说明见 [docs/relay.md](docs/relay.md)。
 
 ## 导入客户端
 
@@ -946,7 +977,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 ### 修改自检计划
 
-默认自检 timer 使用 monotonic 计时：
+默认自检 timer 使用 monotonic 计时，而不是每天固定日历时间：
 
 ```ini
 [Timer]
@@ -954,7 +985,7 @@ OnBootSec=10min
 OnUnitActiveSec=24h
 ```
 
-也就是开机 10 分钟后自检一次，之后每次自检结束/触发后的 24 小时再运行下一次。
+也就是开机 10 分钟后自检一次，之后每次自检结束/触发后的 24 小时再运行下一次。它不会因为时间跨过 0 点就立刻重复运行。
 
 可以用 systemd timer 的 duration 格式修改：
 

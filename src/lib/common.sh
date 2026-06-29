@@ -178,6 +178,20 @@ validate_port_number() {
   fi
 }
 
+# Validate the node port and (when subscription is enabled) the subscription
+# port. Shared by the terminal and relay commands.
+validate_common_ports() {
+  validate_port_number PORT "${PORT}"
+  if is_true "${ENABLE_SUBSCRIPTION}"; then
+    validate_port_number SUB_PORT "${SUB_PORT}"
+  fi
+
+  if is_true "${ENABLE_SUBSCRIPTION}" && [ "${SUB_PORT}" = "${PORT}" ]; then
+    echo "SUB_PORT must be different from PORT. Current value: ${SUB_PORT}"
+    exit 1
+  fi
+}
+
 select_free_local_port() {
   local preferred="${1:-10808}"
   local port
@@ -263,3 +277,5 @@ SYSCTL_EOF
     echo "Warning: BBR not activated. Kernel may not support it or provider may restrict it."
   fi
 }
+
+# (end of common.sh)
