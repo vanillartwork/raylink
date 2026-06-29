@@ -1,0 +1,23 @@
+[Unit]
+Description=Xray VLESS Reality terminal service
+Documentation=https://xtls.github.io/
+After=network.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+User=${XRAY_SERVICE_USER}
+Group=${XRAY_SERVICE_GROUP}
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=${XRAY_CONFIG_DIR} ${INSTALL_DIR}
+ExecStart=${XRAY_BIN} run -config ${XRAY_CONFIG}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=infinity
+
+[Install]
+WantedBy=multi-user.target

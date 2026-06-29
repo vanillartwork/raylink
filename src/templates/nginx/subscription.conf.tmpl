@@ -1,0 +1,57 @@
+# Managed nginx site; overwritten only when content changes.
+limit_req_zone $binary_remote_addr zone=cloud_xray_sub_limit:10m rate=${SUB_RATE_LIMIT};
+
+server {
+    listen ${SUB_PORT};
+    server_name _;
+
+    root ${SUB_ROOT};
+    autoindex off;
+
+    # /sub/{TOKEN} -> /sub/{TOKEN}/vless
+    location ~ "^/sub/[A-Za-z0-9_-]{24,128}$" {
+        limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
+        try_files $uri/vless =404;
+        default_type application/octet-stream;
+        add_header Content-Disposition 'attachment; filename="sub.txt"' always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Cache-Control "no-store" always;
+    }
+
+    # Clash YAML endpoint.
+    location ~* /clash\.yaml$ {
+        limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
+        try_files $uri =404;
+        default_type text/plain;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Cache-Control "no-store" always;
+    }
+
+    # Legacy URI-list endpoint.
+    location ~* /vless$ {
+        limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
+        try_files $uri =404;
+        default_type application/octet-stream;
+        add_header Content-Disposition 'attachment; filename="vless-sub.txt"' always;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Cache-Control "no-store" always;
+    }
+
+    # Browser-readable URI-list alias.
+    location ~* /vless\.txt$ {
+        limit_req zone=cloud_xray_sub_limit burst=${SUB_RATE_BURST} nodelay;
+        try_files $uri =404;
+        default_type text/plain;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Cache-Control "no-store" always;
+    }
+
+    # Block hidden files.
+    location ~ /\. {
+        deny all;
+    }
+
+    location / {
+        return 404;
+    }
+}

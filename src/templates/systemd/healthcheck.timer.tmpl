@@ -1,0 +1,10 @@
+[Unit]
+Description=Run RayLink terminal Reality health check periodically
+
+[Timer]
+OnBootSec=${HEALTHCHECK_ON_BOOT_SEC}
+OnUnitActiveSec=${HEALTHCHECK_ON_UNIT_ACTIVE_SEC}
+Unit=${HEALTHCHECK_SERVICE_NAME}
+
+[Install]
+WantedBy=timers.target

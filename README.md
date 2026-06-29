@@ -8,15 +8,32 @@
 
 RayLink is a script for one-click deployment of a personal Xray VPN node on a Linux server.
 
-This README covers the terminal node installer:
-
-```text
-terminal.sh
-```
-
-The script installs Xray, creates a systemd service, generates persistent VLESS Reality credentials, optionally publishes subscription files through nginx, runs a local Reality self-test before printing the client import information, and can install a lightweight periodic health check timer.
+The installer installs Xray, creates a systemd service, generates persistent VLESS Reality credentials, optionally publishes subscription files through nginx, runs a local Reality self-test before printing the client import information, and can install a lightweight periodic health check timer.
 
 Use this project only for legal and compliant network access. Cloud servers and data transfer may incur charges.
+
+## Project layout
+
+RayLink is now modular. A bootstrap installer downloads the source tree to the
+server, installs a `raylink` CLI into `PATH`, and runs the requested command.
+
+```text
+raylink/
+├── install.sh              # bootstrap: download + install the raylink CLI
+├── terminal.sh             # backward-compatible entrypoint (runs `raylink terminal`)
+├── src/
+│   ├── raylink             # CLI dispatcher
+│   ├── commands/           # per-command orchestration (terminal.sh, …)
+│   ├── lib/                # reusable modules (common, xray, reality, …)
+│   ├── defaults/           # env defaults (terminal.env, legacy.env)
+│   └── templates/          # systemd / nginx / xray / clash templates
+├── scripts/                # build-release.sh, check.sh
+└── docs/                   # terminal.md, configuration.md, troubleshooting.md
+```
+
+On the server the CLI lives under `/usr/local/lib/raylink/` and is linked at
+`/usr/local/bin/raylink`. See [docs/configuration.md](docs/configuration.md)
+for the full variable reference.
 
 ## Default settings
 
@@ -34,6 +51,7 @@ Use this project only for legal and compliant network access. Cloud servers and 
 | Reality self-test | `true` |
 | Reality auto fallback | `true` |
 | Periodic health check timer | `true` |
+| Health check schedule | `OnBootSec=10min`, then `OnUnitActiveSec=24h` |
 
 Traffic path:
 
@@ -115,10 +133,21 @@ Other providers may use `root`, `debian`, `admin`, or another username shown in 
 Run this command on the Linux server:
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- terminal
+```
+
+The original one-liner still works and is equivalent:
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
 ```
 
-After installation, the script prints the server information and subscription URLs.
+After installation, the script prints the server information and subscription URLs. You can re-run or manage the node later with the installed CLI:
+
+```bash
+sudo raylink terminal                 # re-run / update (safe)
+sudo raylink terminal --health-check  # run a health check
+```
 
 ## Import into clients
 
@@ -175,7 +204,8 @@ Common files:
 /opt/cloud-xray-terminal/subscription.env
 /opt/cloud-xray-terminal/public/
 /usr/local/etc/xray/config.json
-/usr/local/bin/raylink-terminal.sh
+/usr/local/lib/raylink/
+/usr/local/bin/raylink
 /etc/raylink-terminal-healthcheck.env
 /etc/systemd/system/raylink-terminal-healthcheck.service
 /etc/systemd/system/raylink-terminal-healthcheck.timer
@@ -264,19 +294,29 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 ### Change the health check schedule
 
-The default health check schedule is `daily` with a randomized delay of `30min`. You can change it with systemd timer values:
+The default health check timer is monotonic, not calendar-based:
+
+```ini
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=24h
+```
+
+This means the node checks itself 10 minutes after boot, then every 24 hours after the previous health check. It does not run again just because the clock passes midnight.
+
+You can change these values with systemd timer duration values:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
-HEALTHCHECK_ON_CALENDAR='*-*-* 04:00:00' \
-HEALTHCHECK_RANDOMIZED_DELAY=30min \
+HEALTHCHECK_ON_BOOT_SEC=5min \
+HEALTHCHECK_ON_UNIT_ACTIVE_SEC=12h \
 bash
 ```
 
 You can also manually run one health check after installation:
 
 ```bash
-sudo /usr/local/bin/raylink-terminal.sh --health-check
+sudo raylink terminal --health-check
 ```
 
 
@@ -339,22 +379,17 @@ This is expected; do not rename Clash YAML or URI fields to the Xray JSON field 
 
 ## Periodic health check
 
-By default, the full installer places a local copy of the script at:
+By default, the full installer installs the `raylink` CLI and a systemd timer:
 
 ```text
-/usr/local/bin/raylink-terminal.sh
-```
-
-and installs a systemd timer:
-
-```text
+/usr/local/bin/raylink
 raylink-terminal-healthcheck.timer
 ```
 
-The timer runs the lightweight health check mode:
+The timer runs the lightweight health check mode through the installed CLI:
 
 ```bash
-sudo /usr/local/bin/raylink-terminal.sh --health-check
+sudo raylink terminal --health-check
 ```
 
 The health check does not run the full installer. It does not update apt packages, reinstall Xray, reset credentials, or reset the subscription token. It only uses the saved node state to check and repair runtime output when needed.
@@ -451,7 +486,7 @@ sudo systemctl list-timers | grep raylink || true
 Run the health check manually:
 
 ```bash
-sudo /usr/local/bin/raylink-terminal.sh --health-check
+sudo raylink terminal --health-check
 ```
 
 View health check logs:
@@ -550,7 +585,7 @@ If the server uses an auto-assigned public IP, the IP may change after stopping 
 The periodic health check detects the current public IPv4 and regenerates local client files and subscription files with the new IP. You can also run it manually:
 
 ```bash
-sudo /usr/local/bin/raylink-terminal.sh --health-check
+sudo raylink terminal --health-check
 ```
 
 If your client subscription URL uses the old raw IP, you still need to edit the subscription URL in the client to use the new IP. The subscription token normally stays the same, so only the IP part of the URL changes.
@@ -566,7 +601,8 @@ sudo systemctl disable --now raylink-terminal-healthcheck.timer 2>/dev/null || t
 sudo rm -f /etc/systemd/system/raylink-terminal-healthcheck.timer
 sudo rm -f /etc/systemd/system/raylink-terminal-healthcheck.service
 sudo rm -f /etc/raylink-terminal-healthcheck.env
-sudo rm -f /usr/local/bin/raylink-terminal.sh
+sudo rm -f /usr/local/bin/raylink
+sudo rm -rf /usr/local/lib/raylink
 
 sudo systemctl disable --now xray
 sudo rm -f /etc/systemd/system/xray.service
@@ -624,15 +660,32 @@ This project is released under the MIT License.
 
 RayLink 是一个用于在 Linux 服务器上一键部署 Xray 个人 VPN 节点的脚本。
 
-本文档目前说明的是 terminal 节点部署脚本：
-
-```text
-terminal.sh
-```
-
-脚本会安装 Xray，创建 systemd 服务，生成并保存 VLESS Reality 连接参数，根据需要通过 nginx 提供订阅链接，在输出客户端配置前执行本机 Reality 自测，并可以安装一个轻量级定期自检 timer。
+安装器会安装 Xray，创建 systemd 服务，生成并保存 VLESS Reality 连接参数，根据需要通过 nginx 提供订阅链接，在输出客户端配置前执行本机 Reality 自测，并可以安装一个轻量级定期自检 timer。
 
 请仅用于合法、合规的网络访问。云服务器和流量可能产生费用，请注意账单。
+
+## 工程结构
+
+RayLink 已经工程化拆分。引导安装器会把源码下载到服务器，安装一个 `raylink`
+CLI 到 `PATH`，再运行所请求的命令。
+
+```text
+raylink/
+├── install.sh              # 引导安装器：下载并安装 raylink CLI
+├── terminal.sh             # 向后兼容入口（等价于 `raylink terminal`）
+├── src/
+│   ├── raylink             # CLI 调度器
+│   ├── commands/           # 各命令编排（terminal.sh 等）
+│   ├── lib/                # 可复用模块（common、xray、reality 等）
+│   ├── defaults/           # 默认参数（terminal.env、legacy.env）
+│   └── templates/          # systemd / nginx / xray / clash 模板
+├── scripts/                # build-release.sh、check.sh
+└── docs/                   # terminal.md、configuration.md、troubleshooting.md
+```
+
+服务器上 CLI 安装在 `/usr/local/lib/raylink/`，并软链到
+`/usr/local/bin/raylink`。完整参数说明见
+[docs/configuration.md](docs/configuration.md)。
 
 ## 默认配置
 
@@ -650,6 +703,7 @@ terminal.sh
 | Reality 本机自测 | `true` |
 | Reality 自动 fallback | `true` |
 | 定期自检 timer | `true` |
+| 自检计划 | 开机 `10min` 后运行一次，之后每 `24h` 运行一次 |
 
 流量路径：
 
@@ -731,10 +785,21 @@ ubuntu
 在 Linux 服务器上运行：
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- terminal
+```
+
+原来的一键命令仍然有效，效果等价：
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo bash
 ```
 
-安装完成后，脚本会输出服务器信息和订阅链接。
+安装完成后，脚本会输出服务器信息和订阅链接。之后可以用安装好的 CLI 管理节点：
+
+```bash
+sudo raylink terminal                 # 重新运行 / 更新（安全）
+sudo raylink terminal --health-check  # 运行一次自检
+```
 
 ## 导入客户端
 
@@ -791,7 +856,8 @@ sudo cat /opt/cloud-xray-terminal/vless-uri.txt
 /opt/cloud-xray-terminal/subscription.env
 /opt/cloud-xray-terminal/public/
 /usr/local/etc/xray/config.json
-/usr/local/bin/raylink-terminal.sh
+/usr/local/lib/raylink/
+/usr/local/bin/raylink
 /etc/raylink-terminal-healthcheck.env
 /etc/systemd/system/raylink-terminal-healthcheck.service
 /etc/systemd/system/raylink-terminal-healthcheck.timer
@@ -882,19 +948,29 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 ### 修改自检计划
 
-默认自检计划是 `daily`，并带有 `30min` 随机延迟。可以用 systemd timer 的时间格式修改：
+默认自检 timer 使用 monotonic 计时，而不是每天固定日历时间：
+
+```ini
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=24h
+```
+
+也就是开机 10 分钟后自检一次，之后每次自检结束/触发后的 24 小时再运行下一次。它不会因为时间跨过 0 点就立刻重复运行。
+
+可以用 systemd timer 的 duration 格式修改：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal.sh | sudo env \
-HEALTHCHECK_ON_CALENDAR='*-*-* 04:00:00' \
-HEALTHCHECK_RANDOMIZED_DELAY=30min \
+HEALTHCHECK_ON_BOOT_SEC=5min \
+HEALTHCHECK_ON_UNIT_ACTIVE_SEC=12h \
 bash
 ```
 
 安装后也可以手动运行一次自检：
 
 ```bash
-sudo /usr/local/bin/raylink-terminal.sh --health-check
+sudo raylink terminal --health-check
 ```
 
 
@@ -957,22 +1033,17 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 
 ## 定期自检
 
-完整安装默认会把脚本的本地副本放在：
+完整安装默认会安装 `raylink` CLI 和一个 systemd timer：
 
 ```text
-/usr/local/bin/raylink-terminal.sh
-```
-
-并安装一个 systemd timer：
-
-```text
+/usr/local/bin/raylink
 raylink-terminal-healthcheck.timer
 ```
 
-timer 会运行轻量级自检模式：
+timer 会通过已安装的 CLI 运行轻量级自检模式：
 
 ```bash
-sudo /usr/local/bin/raylink-terminal.sh --health-check
+sudo raylink terminal --health-check
 ```
 
 自检模式不是完整安装流程。它不会执行 apt 更新、不会重新安装 Xray、不会重置凭据，也不会重置订阅 token。它只会读取已有节点状态，并在需要时修复运行时配置和客户端输出文件。
@@ -1069,7 +1140,7 @@ sudo systemctl list-timers | grep raylink || true
 手动运行自检：
 
 ```bash
-sudo /usr/local/bin/raylink-terminal.sh --health-check
+sudo raylink terminal --health-check
 ```
 
 查看自检日志：
@@ -1168,7 +1239,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/terminal
 定期自检会检测当前公网 IPv4，并用新 IP 重新生成本地客户端配置和订阅文件。也可以手动运行一次自检：
 
 ```bash
-sudo /usr/local/bin/raylink-terminal.sh --health-check
+sudo raylink terminal --health-check
 ```
 
 如果客户端里的订阅 URL 使用的是旧的裸 IP，仍然需要在客户端里把订阅 URL 的 IP 改成新 IP。订阅 token 通常不会变化，所以只需要改 URL 里的 IP 部分。
@@ -1184,7 +1255,8 @@ sudo systemctl disable --now raylink-terminal-healthcheck.timer 2>/dev/null || t
 sudo rm -f /etc/systemd/system/raylink-terminal-healthcheck.timer
 sudo rm -f /etc/systemd/system/raylink-terminal-healthcheck.service
 sudo rm -f /etc/raylink-terminal-healthcheck.env
-sudo rm -f /usr/local/bin/raylink-terminal.sh
+sudo rm -f /usr/local/bin/raylink
+sudo rm -rf /usr/local/lib/raylink
 
 sudo systemctl disable --now xray
 sudo rm -f /etc/systemd/system/xray.service

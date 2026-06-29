@@ -1,0 +1,9 @@
+[Unit]
+Description=RayLink terminal Reality health check
+After=network-online.target ${XRAY_SERVICE}
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-${HEALTHCHECK_ENV_FILE}
+ExecStart=${HEALTHCHECK_EXEC}

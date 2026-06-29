@@ -1,0 +1,28 @@
+
+proxies:
+  - name: "${NODE_NAME}"
+    type: vless
+    server: "${PUBLIC_IP}"
+    port: ${PORT}
+    uuid: "${UUID}"
+    network: tcp
+    udp: true
+    tfo: ${TFO_YAML_VALUE}
+    tls: true
+    servername: "${REALITY_SERVER_NAME}"
+    flow: "${FLOW}"
+    client-fingerprint: "${CLIENT_FINGERPRINT}"
+    reality-opts:
+      public-key: "${PUBLIC_KEY}"
+      short-id: "${SHORT_ID}"
+    skip-cert-verify: false
+
+proxy-groups:
+  - name: "GLOBAL"
+    type: select
+    proxies:
+      - "${NODE_NAME}"
+      - DIRECT
+
+rules:
+  - MATCH,GLOBAL
