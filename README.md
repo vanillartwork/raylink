@@ -50,7 +50,6 @@ for the full variable reference.
 | Reality self-test | `true` |
 | Reality auto fallback | `true` |
 | Periodic health check timer | `true` |
-| Health check schedule | `OnBootSec=10min`, then `OnUnitActiveSec=24h` |
 
 Traffic path:
 
@@ -302,7 +301,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.
 
 ### Change the health check schedule
 
-The default health check timer is monotonic, not calendar-based:
+The default health check timer is monotonic:
 
 ```ini
 [Timer]
@@ -310,7 +309,7 @@ OnBootSec=10min
 OnUnitActiveSec=24h
 ```
 
-This means the node checks itself 10 minutes after boot, then every 24 hours after the previous health check. It does not run again just because the clock passes midnight.
+This means the node checks itself 10 minutes after boot, then every 24 hours after the previous health check.
 
 You can change these values with systemd timer duration values:
 
@@ -710,7 +709,6 @@ raylink/
 | Reality 本机自测 | `true` |
 | Reality 自动 fallback | `true` |
 | 定期自检 timer | `true` |
-| 自检计划 | 开机 `10min` 后运行一次，之后每 `24h` 运行一次 |
 
 流量路径：
 
@@ -963,7 +961,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.
 
 ### 修改自检计划
 
-默认自检 timer 使用 monotonic 计时，而不是每天固定日历时间：
+默认自检 timer 使用 monotonic 计时：
 
 ```ini
 [Timer]
@@ -971,7 +969,7 @@ OnBootSec=10min
 OnUnitActiveSec=24h
 ```
 
-也就是开机 10 分钟后自检一次，之后每次自检结束/触发后的 24 小时再运行下一次。它不会因为时间跨过 0 点就立刻重复运行。
+也就是开机 10 分钟后自检一次，之后每次自检结束/触发后的 24 小时再运行下一次。
 
 可以用 systemd timer 的 duration 格式修改：
 
