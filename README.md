@@ -14,7 +14,7 @@ Use this project only for legal and compliant network access. Cloud servers and 
 
 ## Project layout
 
-RayLink is now modular. A bootstrap installer downloads the source tree to the
+A bootstrap installer downloads the source tree to the
 server, installs a `raylink` CLI into `PATH`, and runs the requested command.
 
 ```text
@@ -51,7 +51,6 @@ for the full variable reference.
 | Reality self-test | `true` |
 | Reality auto fallback | `true` |
 | Periodic health check timer | `true` |
-| Health check schedule | `OnBootSec=10min`, then `OnUnitActiveSec=24h` |
 
 Traffic path:
 
@@ -666,7 +665,7 @@ RayLink 是一个用于在 Linux 服务器上一键部署 Xray 个人 VPN 节点
 
 ## 工程结构
 
-RayLink 已经工程化拆分。引导安装器会把源码下载到服务器，安装一个 `raylink`
+引导安装器会把源码下载到服务器，安装一个 `raylink`
 CLI 到 `PATH`，再运行所请求的命令。
 
 ```text
@@ -703,7 +702,6 @@ raylink/
 | Reality 本机自测 | `true` |
 | Reality 自动 fallback | `true` |
 | 定期自检 timer | `true` |
-| 自检计划 | 开机 `10min` 后运行一次，之后每 `24h` 运行一次 |
 
 流量路径：
 
