@@ -157,8 +157,13 @@ write_kv_env_file() {
     local key="$1"
     local value="$2"
     shift 2
-    # Values are written literally; callers should pass token-like values.
-    printf "%s='%s'\n" "${key}" "${value}" >> "${file}"
+    # Strip newlines (line-based env files cannot represent them) and escape
+    # embedded single quotes using the POSIX '\'' idiom so the single-quoted
+    # value stays valid for shell `source`, systemd EnvironmentFile, and the
+    # load_kv_file_var reader. e.g. NODE_NAME="Bob's node" -> NODE_NAME='Bob'\''s node'
+    value="${value//$'\n'/ }"
+    local escaped=${value//\'/\'\\\'\'}
+    printf "%s='%s'\n" "${key}" "${escaped}" >> "${file}"
   done
   chmod 600 "${file}"
 }

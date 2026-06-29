@@ -20,13 +20,21 @@ write_healthcheck_env_file() {
   write_kv_env_file "${HEALTHCHECK_ENV_FILE}" \
     PORT "${PORT}" \
     NODE_NAME "${NODE_NAME}" \
+    NODE_ROLE "${NODE_ROLE}" \
     INSTALL_DIR "${INSTALL_DIR}" \
     XRAY_BIN "${XRAY_BIN}" \
     XRAY_CONFIG_DIR "${XRAY_CONFIG_DIR}" \
     XRAY_CONFIG "${XRAY_CONFIG}" \
     XRAY_SHARE_DIR "${XRAY_SHARE_DIR}" \
+    XRAY_SERVICE "${XRAY_SERVICE}" \
+    XRAY_SERVICE_DESC "${XRAY_SERVICE_DESC}" \
     XRAY_SERVICE_USER "${XRAY_SERVICE_USER}" \
     XRAY_SERVICE_GROUP "${XRAY_SERVICE_GROUP}" \
+    REALITY_ENV_FILE "${REALITY_ENV_FILE}" \
+    CLASH_FILE "${CLASH_FILE}" \
+    INFO_FILE "${INFO_FILE}" \
+    VLESS_FILE "${VLESS_FILE}" \
+    VLESS_URI_LIST_FILE "${VLESS_URI_LIST_FILE}" \
     LISTEN_ADDRESS "${LISTEN_ADDRESS}" \
     ENABLE_TFO "${ENABLE_TFO}" \
     DNS_PROFILE "${DNS_PROFILE}" \
@@ -43,6 +51,7 @@ write_healthcheck_env_file() {
     SUB_PORT "${SUB_PORT}" \
     SUB_ROOT "${SUB_ROOT}" \
     SUB_ENV_FILE "${SUB_ENV_FILE}" \
+    SUB_LIMIT_ZONE "${SUB_LIMIT_ZONE}" \
     NGINX_SITE "${NGINX_SITE}" \
     NGINX_SITE_LINK "${NGINX_SITE_LINK}" \
     SUB_RATE_LIMIT "${SUB_RATE_LIMIT}" \
@@ -65,7 +74,7 @@ install_healthcheck_timer() {
   HEALTHCHECK_EXEC="${RAYLINK_CLI} ${RAYLINK_COMMAND:-terminal} --health-check"
 
   render_template "${RAYLINK_TEMPLATES}/systemd/healthcheck.service.tmpl" \
-    XRAY_SERVICE HEALTHCHECK_ENV_FILE HEALTHCHECK_EXEC \
+    NODE_ROLE XRAY_SERVICE HEALTHCHECK_ENV_FILE HEALTHCHECK_EXEC \
     > "/etc/systemd/system/${HEALTHCHECK_SERVICE_NAME}"
 
   render_template "${RAYLINK_TEMPLATES}/systemd/healthcheck.timer.tmpl" \
