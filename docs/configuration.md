@@ -123,6 +123,39 @@ These affect `install.sh`, not the node itself:
 |---|---|---|
 | `RAYLINK_REPO` | `vanillartwork/raylink` | GitHub `owner/repo` |
 | `RAYLINK_REF` | `main` | Branch/tag to download |
-| `RAYLINK_TARBALL_URL` | _(empty)_ | Explicit release tarball URL |
+| `RAYLINK_TARBALL_URL` | _(empty)_ | Explicit release tarball URL (skips the GitHub branch tarball) |
 | `RAYLINK_LIB_DIR` | `/usr/local/lib/raylink` | Install location |
 | `RAYLINK_BIN_LINK` | `/usr/local/bin/raylink` | CLI symlink |
+
+## Download / network resilience
+
+All downloads (the RayLink tarball and Xray-core) go through a retrying,
+timeout-bounded curl wrapper. Tune it when GitHub is slow, blocked, or
+rate-limiting.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `GITHUB_URL_PREFIX` | _(empty)_ | Prefix prepended to GitHub URLs (a proxy/mirror), e.g. `https://my-proxy/`. Never hardcoded |
+| `DOWNLOAD_RETRY` | `3` | curl `--retry` attempts |
+| `DOWNLOAD_RETRY_DELAY` | `2` | seconds between retries |
+| `CONNECT_TIMEOUT` | `15` | curl `--connect-timeout` (s) |
+| `MAX_TIME` | `180` | curl `--max-time` per download (s) |
+| `SPEED_TIME` / `SPEED_LIMIT` | `30` / `1` | abort if slower than `SPEED_LIMIT` B/s for `SPEED_TIME` s (stall detection) |
+
+Xray-core specific escape hatches:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `XRAY_DOWNLOAD_URL` | _(empty)_ | Direct `Xray-linux-<arch>.zip` URL; **skips the GitHub API entirely** |
+| `XRAY_REPO` | `XTLS/Xray-core` | GitHub `owner/repo` for Xray |
+| `XRAY_API_URL` | `https://api.github.com/repos/${XRAY_REPO}/releases/latest` | Release metadata URL |
+| `XRAY_URL_PREFIX` | `${GITHUB_URL_PREFIX}` | Proxy prefix for the Xray API and asset URLs |
+
+Examples (GitHub slow/blocked):
+
+```bash
+curl -fsSL .../install.sh | sudo env GITHUB_URL_PREFIX='https://your-proxy/' bash -s -- terminal
+curl -fsSL .../install.sh | sudo env XRAY_DOWNLOAD_URL='https://example.com/Xray-linux-64.zip' bash -s -- terminal
+```
+
+TLS verification is always on — RayLink never uses `curl -k`.

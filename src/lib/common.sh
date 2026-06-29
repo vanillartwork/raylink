@@ -241,6 +241,32 @@ render_template() {
   envsubst "${whitelist}" < "${template}"
 }
 
+# Prepend an optional proxy/mirror prefix to a URL (empty prefix = unchanged).
+apply_url_prefix() {
+  local prefix="${1:-}" url="${2:-}"
+  if [ -n "${prefix}" ]; then printf '%s%s' "${prefix}" "${url}"; else printf '%s' "${url}"; fi
+}
+
+# curl wrapper with retry, timeouts, and stall detection. Tunable via env:
+# DOWNLOAD_RETRY, DOWNLOAD_RETRY_DELAY, CONNECT_TIMEOUT, MAX_TIME, SPEED_TIME, SPEED_LIMIT.
+fetch_file() {
+  local url="$1" output="$2"
+  local -a opts=(
+    -fL
+    --retry "${DOWNLOAD_RETRY:-3}"
+    --retry-delay "${DOWNLOAD_RETRY_DELAY:-2}"
+    --connect-timeout "${CONNECT_TIMEOUT:-15}"
+    --max-time "${MAX_TIME:-180}"
+    --speed-time "${SPEED_TIME:-30}"
+    --speed-limit "${SPEED_LIMIT:-1}"
+  )
+  # --retry-all-errors needs a newer curl (>= 7.71); add it only if supported.
+  if curl --help all 2>/dev/null | grep -q -- '--retry-all-errors'; then
+    opts+=(--retry-all-errors)
+  fi
+  curl "${opts[@]}" "${url}" -o "${output}"
+}
+
 install_required_packages() {
   local packages=(ca-certificates)
 

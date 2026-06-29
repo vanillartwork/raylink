@@ -9,7 +9,8 @@ install_xray() {
 
   echo "Installing Xray-core from GitHub latest release..."
 
-  local arch xray_arch tmp_dir release_json download_url found_bin prev_exit_trap_action
+  local arch xray_arch tmp_dir download_url found_bin prev_exit_trap_action
+  local xray_repo xray_api_url xray_url_prefix xray_download_url api_url
   arch="$(uname -m)"
   case "${arch}" in
     x86_64|amd64)
@@ -27,26 +28,61 @@ install_xray() {
       ;;
   esac
 
+  # Download configuration. XRAY_DOWNLOAD_URL is the main escape hatch: a direct
+  # zip URL that skips the GitHub API entirely. XRAY_URL_PREFIX (falling back to
+  # GITHUB_URL_PREFIX) proxies the API and asset URLs.
+  xray_repo="${XRAY_REPO:-XTLS/Xray-core}"
+  xray_api_url="${XRAY_API_URL:-https://api.github.com/repos/${xray_repo}/releases/latest}"
+  xray_url_prefix="${XRAY_URL_PREFIX:-${GITHUB_URL_PREFIX:-}}"
+  xray_download_url="${XRAY_DOWNLOAD_URL:-}"
+
   # Preserve any existing EXIT trap. Do not use eval on the full trap -p output.
   prev_exit_trap_action="$(trap -p EXIT | sed "s/^trap -- '//;s/' EXIT$//" || true)"
   tmp_dir="$(mktemp -d)"
   trap 'rm -rf "${tmp_dir:-}"' EXIT
   cd "${tmp_dir}"
 
-  release_json="$(curl -fsSL https://api.github.com/repos/XTLS/Xray-core/releases/latest)"
-  if command -v jq >/dev/null 2>&1; then
-    download_url="$(printf '%s' "${release_json}" | jq -r ".assets[] | select(.name | test(\"Xray-linux-${xray_arch}\\\\.zip\")) | .browser_download_url" | head -n 1)"
-    [ "${download_url}" = "null" ] && download_url=""
+  if [ -n "${xray_download_url}" ]; then
+    download_url="${xray_download_url}"
   else
-    download_url="$(printf '%s' "${release_json}" | grep -oE "https://[^\"]+Xray-linux-${xray_arch}\.zip" | head -n 1)"
+    # Fetch release metadata to a file (easier to inspect than a shell variable
+    # when GitHub returns an HTML error page or a rate-limit response).
+    api_url="$(apply_url_prefix "${xray_url_prefix}" "${xray_api_url}")"
+    if ! fetch_file "${api_url}" release.json; then
+      echo "Failed to fetch Xray release metadata from: ${api_url}" >&2
+      echo "GitHub may be slow, blocked, or rate-limiting. Retry with one of:" >&2
+      echo "  XRAY_DOWNLOAD_URL=https://.../Xray-linux-${xray_arch}.zip   (skip the GitHub API)" >&2
+      echo "  GITHUB_URL_PREFIX=https://your-proxy/                        (proxy GitHub)" >&2
+      exit 1
+    fi
+    if command -v jq >/dev/null 2>&1; then
+      download_url="$(jq -r ".assets[] | select(.name | test(\"Xray-linux-${xray_arch}\\\\.zip\")) | .browser_download_url" release.json | head -n 1)"
+      [ "${download_url}" = "null" ] && download_url=""
+    else
+      download_url="$(grep -oE "https://[^\"]+Xray-linux-${xray_arch}\.zip" release.json | head -n 1)"
+    fi
+
+    if [ -z "${download_url}" ]; then
+      echo "Failed to find an Xray download URL for linux-${xray_arch} in the release metadata." >&2
+      echo "Set XRAY_DOWNLOAD_URL to a direct Xray-linux-${xray_arch}.zip URL to bypass the API." >&2
+      exit 1
+    fi
+    download_url="$(apply_url_prefix "${xray_url_prefix}" "${download_url}")"
   fi
 
-  if [ -z "${download_url}" ]; then
-    echo "Failed to find Xray download URL for linux-${xray_arch}."
+  if ! fetch_file "${download_url}" xray.zip; then
+    echo "Failed to download Xray from: ${download_url}" >&2
+    echo "Retry with XRAY_DOWNLOAD_URL=<direct zip url> or GITHUB_URL_PREFIX=<proxy prefix>." >&2
     exit 1
   fi
 
-  curl -fL "${download_url}" -o xray.zip
+  # Integrity check: a proxy/error page saved as xray.zip would fail here.
+  if ! unzip -t xray.zip >/dev/null 2>&1; then
+    echo "Downloaded Xray archive failed its integrity check (corrupt, or not a zip): ${download_url}" >&2
+    echo "This often means a proxy or error page was downloaded instead of the zip." >&2
+    echo "Try a different XRAY_DOWNLOAD_URL or GITHUB_URL_PREFIX." >&2
+    exit 1
+  fi
   unzip -o xray.zip >/dev/null
 
   found_bin="$(find . -maxdepth 2 -type f -name xray | head -n 1)"
