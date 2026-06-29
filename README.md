@@ -1,6 +1,6 @@
 # RayLink
 
-[English](#english) | [中文说明](#中文说明)
+[English](#english) | [中文](#中文)
 
 ---
 
@@ -128,7 +128,7 @@ Other providers may use `root`, `debian`, `admin`, or another username shown in 
 
 ## One-click installation
 
-Run this command on the Linux server:
+Run this command on the Linux server (Terminal):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- terminal
@@ -663,7 +663,7 @@ This project is released under the MIT License.
 
 ---
 
-# 中文说明
+# 中文
 
 RayLink 是一个用于在 Linux 服务器上一键部署 Xray 个人 VPN 节点的脚本。
 
@@ -787,7 +787,7 @@ ubuntu
 
 ## 一键安装
 
-在 Linux 服务器上运行：
+在 Linux 服务器（终端节点）上运行：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- terminal
@@ -800,11 +800,11 @@ sudo raylink terminal                 # 重新运行 / 更新（安全）
 sudo raylink terminal --health-check  # 运行一次自检
 ```
 
-## Relay 中转节点（可选）
+## 中转节点（可选）
 
-Relay 把客户端流量转发到一个已有的 terminal 节点，让 terminal 藏在一跳中转之后
-（客户端 → Relay → Terminal → 互联网）。它需要一个可用的 terminal 作为上游。
-在 relay 服务器上运行：
+中转节点把客户端流量转发到一个已有的终端节点，让终端节点藏在一跳中转之后
+（客户端 → 中转节点 → 终端节点 → 互联网）。它需要一个可用的终端节点作为上游。
+在中转节点服务器上运行：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh \
