@@ -108,36 +108,22 @@ run_full_install() {
   echo "Full server information saved to: ${INFO_FILE}"
   echo "VLESS direct import link saved to: ${VLESS_FILE}"
 
-  echo ""
-  echo "Xray status:"
-  systemctl status "${XRAY_SERVICE}" --no-pager || true
-
   if is_true "${ENABLE_SUBSCRIPTION}"; then
     echo ""
-    echo "Nginx status:"
-    systemctl status nginx --no-pager || true
+    echo "Subscription URLs (import these in your client):"
+    echo "  Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket):"
+    echo "    ${SUBSCRIPTION_URL_UNIVERSAL}"
+    echo "  Mihomo / Clash Meta / FlClash / Clash Verge Rev:"
+    echo "    ${SUBSCRIPTION_URL_CLASH}"
   fi
 
   echo ""
-  echo "Listening ports:"
   if is_true "${ENABLE_SUBSCRIPTION}"; then
-    ss -tulnp | grep -E ":(${PORT}|${SUB_PORT})([[:space:]]|$)" || true
+    echo "Important: allow inbound TCP ${PORT} and ${SUB_PORT} in your cloud firewall/security group."
   else
-    ss -tulnp | grep -E ":${PORT}([[:space:]]|$)" || true
+    echo "Important: allow inbound TCP ${PORT} in your cloud firewall/security group."
   fi
-
-  echo ""
-  echo "Important: allow TCP ${PORT} in your cloud firewall/security group."
-  echo "Reality over TCP does not need UDP ${PORT}."
-  echo "TCP Fast Open: ${ENABLE_TFO}. Set ENABLE_TFO=true if your client and network path support it."
-  if is_true "${ENABLE_SUBSCRIPTION}"; then
-    echo "Important: allow TCP ${SUB_PORT} if you want to access the subscription URLs from outside."
-    echo "Plain HTTP subscription warning: use only on trusted networks, or restrict ${SUB_PORT} by firewall/source IP."
-    echo "Do not publish the subscription URLs publicly; they contain your client config."
-  fi
-  if is_true "${ENABLE_HEALTHCHECK_TIMER}"; then
-    echo "Health check timer: ${HEALTHCHECK_TIMER_NAME}"
-  fi
+  echo "Service status, ports, and troubleshooting commands: see the README."
 }
 
 terminal_main() {

@@ -19,6 +19,10 @@ terminal firewall to only accept the relay's IP.
 Trade-offs: one extra hop of latency, traffic billed on both servers, and a
 failure on either node breaks the chain.
 
+> Server preparation, SSH, and importing the relay's subscription into clients
+> are the same as any node — see [getting-started.md](getting-started.md). This
+> page covers what is relay-specific.
+
 ## Prerequisite: a working terminal
 
 The relay needs upstream terminal parameters. Deploy a terminal first (see

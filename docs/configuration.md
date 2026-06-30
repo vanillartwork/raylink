@@ -19,7 +19,7 @@ sudo env KEY=value raylink terminal
 | `NODE_NAME` | `Terminal-Reality` | Node display name in clients |
 | `INSTALL_DIR` | `/opt/cloud-xray-terminal` | Generated-files directory |
 | `LISTEN_ADDRESS` | `0.0.0.0` | Xray inbound bind address |
-| `ENABLE_TFO` | `false` | TCP Fast Open in Xray + client config |
+| `ENABLE_TFO` | `true` | TCP Fast Open in Xray + client config; set `false` to disable |
 
 ## Xray service identity
 

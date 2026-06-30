@@ -218,35 +218,23 @@ run_relay_full_install() {
   echo "VLESS direct import link saved to: ${VLESS_FILE}"
   echo "Upstream terminal: ${UPSTREAM_ADDRESS}:${UPSTREAM_PORT}"
 
-  echo ""
-  echo "Relay Xray status:"
-  systemctl status "${XRAY_SERVICE}" --no-pager || true
-
   if is_true "${ENABLE_SUBSCRIPTION}"; then
     echo ""
-    echo "Nginx status:"
-    systemctl status nginx --no-pager || true
+    echo "Subscription URLs (import these in your client):"
+    echo "  Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket):"
+    echo "    ${SUBSCRIPTION_URL_UNIVERSAL}"
+    echo "  Mihomo / Clash Meta / FlClash / Clash Verge Rev:"
+    echo "    ${SUBSCRIPTION_URL_CLASH}"
   fi
 
   echo ""
-  echo "Listening ports:"
   if is_true "${ENABLE_SUBSCRIPTION}"; then
-    ss -tulnp | grep -E ":(${PORT}|${SUB_PORT})([[:space:]]|$)" || true
+    echo "Important: allow inbound TCP ${PORT} and ${SUB_PORT} on the relay (clients connect only to the relay)."
   else
-    ss -tulnp | grep -E ":${PORT}([[:space:]]|$)" || true
+    echo "Important: allow inbound TCP ${PORT} on the relay (clients connect only to the relay)."
   fi
-
-  echo ""
-  echo "Important: allow TCP ${PORT} in the relay firewall/security group for clients."
   echo "On the TERMINAL server, allow TCP ${UPSTREAM_PORT} from this relay's IP (${PUBLIC_IP})."
-  echo "Clients connect only to the relay; the terminal can be restricted to the relay IP."
-  if is_true "${ENABLE_SUBSCRIPTION}"; then
-    echo "Important: allow TCP ${SUB_PORT} if you want to access the relay subscription URLs."
-    echo "Plain HTTP subscription warning: use only on trusted networks, or restrict ${SUB_PORT} by firewall/source IP."
-  fi
-  if is_true "${ENABLE_HEALTHCHECK_TIMER}"; then
-    echo "Health check timer: ${HEALTHCHECK_TIMER_NAME}"
-  fi
+  echo "Service status, ports, and troubleshooting commands: see the README."
 }
 
 # Map RELAY_* aliases onto the standard inbound variable names so the shared
