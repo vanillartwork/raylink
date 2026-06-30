@@ -180,7 +180,7 @@ curl -fsSL .../install.sh | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_
 
 > 文档为英文。
 
-### 工程结构
+### 项目结构
 
 ```text
 raylink/
@@ -190,7 +190,7 @@ raylink/
 └── docs/
 ```
 
-服务器上 CLI 位于 `/usr/local/lib/raylink/`，软链到 `/usr/local/bin/raylink`。
+服务器端 CLI 安装在 `/usr/local/lib/raylink/`，软链到 `/usr/local/bin/raylink`。
 
 ### 安全
 
