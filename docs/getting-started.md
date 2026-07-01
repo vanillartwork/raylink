@@ -280,7 +280,7 @@ Press Enter to accept the default save location. Afterwards you have two files:
 - `id_ed25519.pub` (or `id_rsa.pub`) — the **public key**. Safe to upload to your
   VPS provider.
 
-Copy the public key to your clipboard, then paste it into your provider's
+Copy the public key contents to your clipboard, then paste it into your provider's
 **SSH Keys** page (the "Key Name" is just a label and does not affect
 authentication):
 
@@ -552,7 +552,7 @@ ssh-keygen -t rsa -b 4096 -C "you@example.com" -f ~/.ssh/id_rsa
 - `id_ed25519`(或 `id_rsa`)—— **私钥**,切勿泄露。
 - `id_ed25519.pub`(或 `id_rsa.pub`)—— **公钥**,可以安全上传给 VPS 服务商。
 
-把公钥复制到剪贴板，再粘贴到服务商的 **SSH Keys** 页面("Key Name" 只是标签,不影响认证)：
+把公钥内容复制到剪贴板，再粘贴到服务商的 **SSH Keys** 页面（"Key Name" 只是标签，不影响认证）：
 
 **# macOS**
 ```
