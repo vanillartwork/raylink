@@ -294,9 +294,11 @@ authentication):
 ```bash
 # macOS
 pbcopy < ~/.ssh/id_ed25519.pub
+```
 
+```bash
 # Linux (X11 / Wayland)
-xclip -sel clip < ~/.ssh/id_ed25519.pub   # or: wl-copy < ~/.ssh/id_ed25519.pub
+xclip -sel clip < ~/.ssh/id_ed25519.pub
 ```
 
 ```powershell
@@ -499,7 +501,7 @@ systemd timer 已经在定期自检并自修复。想深入了解:
 
 ## 附录
 
-### A. 防火墙(ufw / firewalld)
+### A. 防火墙 (ufw / firewalld)
 
 只在云控制台开端口有时不够——操作系统本身可能也在跑本地防火墙。建议只配置**已经启用**
 的防火墙。
@@ -572,9 +574,11 @@ ssh-keygen -t rsa -b 4096 -C "you@example.com" -f ~/.ssh/id_rsa
 ```bash
 # macOS
 pbcopy < ~/.ssh/id_ed25519.pub
+```
 
+```bash
 # Linux(X11 / Wayland)
-xclip -sel clip < ~/.ssh/id_ed25519.pub   # 或:wl-copy < ~/.ssh/id_ed25519.pub
+xclip -sel clip < ~/.ssh/id_ed25519.pub
 ```
 
 ```powershell
