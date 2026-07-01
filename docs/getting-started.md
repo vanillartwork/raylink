@@ -15,7 +15,7 @@ address throughout.
 
 ### 1. Prerequisites
 
-#### 1.1 Choose a VPS
+#### 1.1 Launch a server instance
 
 You need a Linux server with a public IP address (IPv4 or IPv6) and SSH access.
 Any provider works — AWS, Google Cloud, Oracle Cloud, Azure or other cloud
@@ -309,9 +309,9 @@ Get-Content "$env:USERPROFILE\.ssh\id_ed25519.pub" | Set-Clipboard
 
 ### 1. 准备工作
 
-#### 1.1 选择 VPS
+#### 1.1 启动一台服务器实例
 
-你需要一台有公网 IP(IPv4 或 IPv6)且可 SSH 登录的 Linux 服务器。AWS、Google
+你需要一台有公网 IP（IPv4 或 IPv6）且可 SSH 登录的 Linux 服务器。AWS、Google
 Cloud、Oracle Cloud、Azure 或者其他云服务提供商。推荐 Ubuntu 系统，个人使用选小规格实例即可。
 
 **示例:AWS EC2**
