@@ -7,8 +7,8 @@ set -euo pipefail
 #   curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash
 #
 # Install and immediately run a command (anything after `--` is passed to raylink):
-#   curl -fsSL .../install.sh | sudo bash -s -- terminal
-#   curl -fsSL .../install.sh | sudo env PORT=8443 bash -s -- terminal
+#   curl -fsSL .../install.sh | sudo bash -s -- exit
+#   curl -fsSL .../install.sh | sudo env PORT=8443 bash -s -- exit
 #
 # This script downloads the RayLink source tree, installs it under
 # RAYLINK_LIB_DIR, links the `raylink` CLI into PATH, and optionally runs a
@@ -139,8 +139,8 @@ main() {
 
   log ""
   log "RayLink installed. Run a command, for example:"
-  log "  sudo raylink terminal"
-  log "  sudo raylink terminal --health-check"
+  log "  sudo raylink exit"
+  log "  sudo raylink exit --health-check"
 }
 
 main "$@"

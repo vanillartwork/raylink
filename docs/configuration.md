@@ -1,14 +1,14 @@
 # Configuration reference
 
 All configuration is passed as environment variables. Defaults live in
-`src/defaults/terminal.env` and `src/defaults/legacy.env` and use
+`src/defaults/exit.env` and `src/defaults/legacy.env` and use
 `${VAR:=default}` assignment, so any value you export takes priority and is
 preserved across re-runs.
 
 ```bash
-curl -fsSL .../install.sh | sudo env KEY=value KEY2=value2 bash -s -- terminal
+curl -fsSL .../install.sh | sudo env KEY=value KEY2=value2 bash -s -- exit
 # or, once installed:
-sudo env KEY=value raylink terminal
+sudo env KEY=value raylink exit
 ```
 
 ## Node basics
@@ -16,8 +16,8 @@ sudo env KEY=value raylink terminal
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `443` | Xray VLESS Reality listen port |
-| `NODE_NAME` | `Terminal-Reality` | Node display name in clients |
-| `INSTALL_DIR` | `/opt/cloud-xray-terminal` | Generated-files directory |
+| `NODE_NAME` | `Exit-Reality` | Node display name in clients |
+| `INSTALL_DIR` | `/opt/cloud-xray-exit` | Generated-files directory |
 | `LISTEN_ADDRESS` | `0.0.0.0` | Xray inbound bind address |
 | `ENABLE_TFO` | `true` | TCP Fast Open in Xray + client config; set `false` to disable |
 
@@ -79,13 +79,13 @@ Aliases: `global`/`world`/`overseas` → `foreign`; `return`/`home`/`backhome`
 |---|---|
 | `ENABLE_HEALTHCHECK_TIMER` | `true` |
 | `RAYLINK_CLI` | `/usr/local/bin/raylink` |
-| `HEALTHCHECK_ENV_FILE` | `/etc/raylink-terminal-healthcheck.env` |
+| `HEALTHCHECK_ENV_FILE` | `/etc/raylink-exit-healthcheck.env` |
 | `HEALTHCHECK_ON_BOOT_SEC` | `10min` |
 | `HEALTHCHECK_ON_UNIT_ACTIVE_SEC` | `24h` |
 
 ## Relay node (`raylink relay`)
 
-The relay reuses every terminal variable above for its **client-facing inbound**
+The relay reuses every exit variable above for its **client-facing inbound**
 (defaults differ: `NODE_NAME=Relay-Reality`, `INSTALL_DIR=/opt/cloud-xray-relay`,
 `XRAY_SERVICE=raylink-relay.service`, `XRAY_CONFIG_DIR=/usr/local/etc/raylink/relay-xray`,
 nginx site/zone and health check units are relay-specific). See
@@ -96,21 +96,21 @@ standard names): `RELAY_PORT`, `RELAY_NODE_NAME`, `RELAY_UUID`,
 `RELAY_PRIVATE_KEY`, `RELAY_PUBLIC_KEY`, `RELAY_SHORT_ID`, `RELAY_REALITY_DEST`,
 `RELAY_REALITY_SERVER_NAME`, `RELAY_CLIENT_FINGERPRINT`, `RELAY_FLOW`.
 
-### Upstream terminal (relay → terminal)
+### Upstream exit (relay → exit)
 
 Provide one of: `UPSTREAM_SUBSCRIPTION_URL`, `UPSTREAM_VLESS_URI`, or the
 individual fields. Saved to `${INSTALL_DIR}/upstream.env`, never published.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `UPSTREAM_SUBSCRIPTION_URL` | _(empty)_ | Terminal Universal URI-list URL `http://IP:8080/sub/TOKEN` (returns the base64 `vless://` list; not the `/clash.yaml` endpoint); health check can re-fetch it |
-| `UPSTREAM_VLESS_URI` | _(empty)_ | A terminal `vless://…` link to parse |
-| `UPSTREAM_ADDRESS` | _(required)_ | Terminal IP or domain |
-| `UPSTREAM_PORT` | `443` | Terminal port |
-| `UPSTREAM_UUID` | _(required)_ | Terminal client UUID |
-| `UPSTREAM_PUBLIC_KEY` | _(required)_ | Terminal Reality public key |
-| `UPSTREAM_SERVER_NAME` | _(= address)_ | Terminal SNI |
-| `UPSTREAM_SHORT_ID` | _(empty)_ | Terminal shortId |
+| `UPSTREAM_SUBSCRIPTION_URL` | _(empty)_ | Exit Universal URI-list URL `http://IP:8080/sub/TOKEN` (returns the base64 `vless://` list; not the `/clash.yaml` endpoint); health check can re-fetch it |
+| `UPSTREAM_VLESS_URI` | _(empty)_ | An exit `vless://…` link to parse |
+| `UPSTREAM_ADDRESS` | _(required)_ | Exit IP or domain |
+| `UPSTREAM_PORT` | `443` | Exit port |
+| `UPSTREAM_UUID` | _(required)_ | Exit client UUID |
+| `UPSTREAM_PUBLIC_KEY` | _(required)_ | Exit Reality public key |
+| `UPSTREAM_SERVER_NAME` | _(= address)_ | Exit SNI |
+| `UPSTREAM_SHORT_ID` | _(empty)_ | Exit shortId |
 | `UPSTREAM_FINGERPRINT` | `chrome` | uTLS fingerprint for the upstream link |
 | `UPSTREAM_FLOW` | `xtls-rprx-vision` | Upstream VLESS flow |
 | `UPSTREAM_ENV_FILE` | `${INSTALL_DIR}/upstream.env` | Where upstream params are saved |
@@ -152,7 +152,7 @@ For your own debugging only; never bind a public address. Inspect with e.g.
 `curl http://127.0.0.1:11111/debug/vars`. Example:
 
 ```bash
-sudo env ENABLE_XRAY_METRICS=true raylink terminal
+sudo env ENABLE_XRAY_METRICS=true raylink exit
 ```
 
 ## Installer (bootstrap) variables
@@ -194,8 +194,8 @@ Xray-core specific escape hatches:
 Examples (GitHub slow/blocked):
 
 ```bash
-curl -fsSL .../install.sh | sudo env GITHUB_URL_PREFIX='https://your-proxy/' bash -s -- terminal
-curl -fsSL .../install.sh | sudo env XRAY_DOWNLOAD_URL='https://example.com/Xray-linux-64.zip' bash -s -- terminal
+curl -fsSL .../install.sh | sudo env GITHUB_URL_PREFIX='https://your-proxy/' bash -s -- exit
+curl -fsSL .../install.sh | sudo env XRAY_DOWNLOAD_URL='https://example.com/Xray-linux-64.zip' bash -s -- exit
 ```
 
 TLS verification is always on — RayLink never uses `curl -k`.

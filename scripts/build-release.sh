@@ -8,7 +8,7 @@ set -euo pipefail
 # The archive extracts to raylink-<version>/src/... so that install.sh can
 # locate the src/ tree the same way it does for a GitHub branch tarball:
 #   RAYLINK_TARBALL_URL=.../raylink-<version>.tar.gz \
-#     curl -fsSL .../install.sh | sudo bash -s -- terminal
+#     curl -fsSL .../install.sh | sudo bash -s -- exit
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC_DIR="${REPO_ROOT}/src"

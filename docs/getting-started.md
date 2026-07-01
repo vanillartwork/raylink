@@ -3,7 +3,7 @@
 This guide covers the parts shared by every node type: preparing a server,
 connecting over SSH, importing the generated subscription into clients, and
 downloading config to your computer. For node-specific install commands and
-options, see [terminal.md](terminal.md) and [relay.md](relay.md).
+options, see [exit.md](exit.md) and [relay.md](relay.md).
 
 ## 1. Prepare a server
 
@@ -21,7 +21,7 @@ Open these inbound TCP ports in the cloud firewall / security group:
 | `8080` | your IP if possible | HTTP subscription (optional) |
 
 Reality over TCP needs no UDP. The subscription URL contains your full client
-config — do not publish it. For a relay, the terminal's port is opened to the
+config — do not publish it. For a relay, the exit's port is opened to the
 relay's IP instead — see [relay.md](relay.md).
 
 ## 2. Connect via SSH
@@ -35,8 +35,8 @@ Ubuntu cloud images usually use the `ubuntu` user; other providers may use
 
 ## 3. Install a node
 
-- **Terminal** (entry/exit node): [terminal.md](terminal.md)
-- **Relay** (forwards to an upstream terminal): [relay.md](relay.md)
+- **Exit** (entry/exit node): [exit.md](exit.md)
+- **Relay** (forwards to an upstream exit): [relay.md](relay.md)
 
 The installer prints your subscription URLs when it finishes (they are also
 saved to `server-info.txt` in the install directory).
@@ -50,10 +50,10 @@ saved to `server-info.txt` in the install directory).
 
 For Clash/Mihomo clients, import the `clash.yaml` URL, select your node under the
 `GLOBAL` group, then enable system proxy or TUN mode. View the direct VLESS link
-on the server (terminal path shown; a relay uses `/opt/cloud-xray-relay`):
+on the server (exit path shown; a relay uses `/opt/cloud-xray-relay`):
 
 ```bash
-sudo cat /opt/cloud-xray-terminal/vless-uri.txt
+sudo cat /opt/cloud-xray-exit/vless-uri.txt
 ```
 
 The Clash YAML and VLESS URI keep their own field names (`network: tcp`,
@@ -63,12 +63,12 @@ them to the Xray JSON field names.
 ## 5. Download config to your computer
 
 ```bash
-scp -i key.pem ubuntu@SERVER_PUBLIC_IP:/opt/cloud-xray-terminal/clash.yaml ./raylink-clash.yaml
-scp -i key.pem ubuntu@SERVER_PUBLIC_IP:/opt/cloud-xray-terminal/vless-uri.txt ./vless-uri.txt
+scp -i key.pem ubuntu@SERVER_PUBLIC_IP:/opt/cloud-xray-exit/clash.yaml ./raylink-clash.yaml
+scp -i key.pem ubuntu@SERVER_PUBLIC_IP:/opt/cloud-xray-exit/vless-uri.txt ./vless-uri.txt
 ```
 
 ## Next
 
-- [terminal.md](terminal.md) / [relay.md](relay.md) — install and manage a node.
+- [exit.md](exit.md) / [relay.md](relay.md) — install and manage a node.
 - [configuration.md](configuration.md) — every environment variable.
 - [troubleshooting.md](troubleshooting.md) — common issues and uninstall.

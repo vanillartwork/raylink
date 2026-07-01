@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # RayLink shared helpers. Sourced by the raylink dispatcher.
-# Generic, role-agnostic functions reused by terminal and (future) relay.
+# Generic, role-agnostic functions reused by exit and (future) relay.
 
 is_true() {
   case "${1:-}" in
@@ -12,7 +12,7 @@ is_true() {
 require_root() {
   if [ "$(id -u)" -ne 0 ]; then
     echo "Please run this command as root, for example:"
-    echo "  sudo raylink ${RAYLINK_COMMAND:-terminal}"
+    echo "  sudo raylink ${RAYLINK_COMMAND:-exit}"
     exit 1
   fi
 }
@@ -245,7 +245,7 @@ validate_port_number() {
 }
 
 # Validate the node port and (when subscription is enabled) the subscription
-# port. Shared by the terminal and relay commands.
+# port. Shared by the exit and relay commands.
 validate_common_ports() {
   validate_port_number PORT "${PORT}"
   if is_true "${ENABLE_SUBSCRIPTION}"; then

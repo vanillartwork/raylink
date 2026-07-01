@@ -75,20 +75,20 @@ install_healthcheck_timer() {
   fi
 
   # Persist the runtime environment for the timer-invoked run. The writer is
-  # role-specific (terminal vs relay) and defaults to the terminal writer.
+  # role-specific (exit vs relay) and defaults to the exit writer.
   "${HEALTHCHECK_ENV_WRITER:-write_healthcheck_env_file}"
 
   # In the modular layout the health check runs the installed CLI directly;
   # there is no self-copy. The CLI lives on disk under RAYLINK_LIB_DIR and is
-  # linked at RAYLINK_CLI. RAYLINK_COMMAND is set by the dispatcher (terminal/relay).
-  HEALTHCHECK_EXEC="${RAYLINK_CLI} ${RAYLINK_COMMAND:-terminal} --health-check"
+  # linked at RAYLINK_CLI. RAYLINK_COMMAND is set by the dispatcher (exit/relay).
+  HEALTHCHECK_EXEC="${RAYLINK_CLI} ${RAYLINK_COMMAND:-exit} --health-check"
 
   render_template "${RAYLINK_TEMPLATES}/systemd/healthcheck.service.tmpl" \
     NODE_ROLE XRAY_SERVICE HEALTHCHECK_ENV_FILE HEALTHCHECK_EXEC \
     > "/etc/systemd/system/${HEALTHCHECK_SERVICE_NAME}"
 
   render_template "${RAYLINK_TEMPLATES}/systemd/healthcheck.timer.tmpl" \
-    HEALTHCHECK_ON_BOOT_SEC HEALTHCHECK_ON_UNIT_ACTIVE_SEC HEALTHCHECK_SERVICE_NAME \
+    NODE_ROLE HEALTHCHECK_ON_BOOT_SEC HEALTHCHECK_ON_UNIT_ACTIVE_SEC HEALTHCHECK_SERVICE_NAME \
     > "/etc/systemd/system/${HEALTHCHECK_TIMER_NAME}"
 
   systemctl daemon-reload

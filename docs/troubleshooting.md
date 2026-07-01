@@ -14,7 +14,7 @@ firewall/security group first.
 ## Subscription URL cannot open
 
 ```bash
-sudo cat /opt/cloud-xray-terminal/subscription.env
+sudo cat /opt/cloud-xray-exit/subscription.env
 sudo systemctl status nginx --no-pager
 sudo ss -ltnp | grep ':8080'
 ```
@@ -27,7 +27,7 @@ Reality targets can become unsuitable. Re-run and let the self-test/fallback
 pick a working target, then re-import the subscription in your client:
 
 ```bash
-sudo raylink terminal
+sudo raylink exit
 ```
 
 ## Public IP changed
@@ -36,7 +36,7 @@ The health check regenerates local client and subscription files with the new
 IP. Run it manually if needed:
 
 ```bash
-sudo raylink terminal --health-check
+sudo raylink exit --health-check
 ```
 
 If your client's subscription URL uses the old raw IP, update the IP part of
@@ -45,7 +45,7 @@ Elastic IP) or a domain to avoid this.
 
 ## Relay: client connects but no internet
 
-The relay inbound is fine but the relay→terminal hop or the terminal itself is
+The relay inbound is fine but the relay→exit hop or the exit itself is
 broken. Check, on the relay:
 
 ```bash
@@ -55,21 +55,21 @@ sudo cat /opt/cloud-xray-relay/upstream.env
 sudo raylink relay --health-check
 ```
 
-Then verify the terminal is reachable from the relay (`TERMINAL_IP` / port from
-`upstream.env`) and that the terminal's firewall allows the relay's IP:
+Then verify the exit is reachable from the relay (`EXIT_IP` / port from
+`upstream.env`) and that the exit's firewall allows the relay's IP:
 
 ```bash
-nc -vz TERMINAL_IP 443
+nc -vz EXIT_IP 443
 ```
 
-If the terminal's public IP changed and `UPSTREAM_SUBSCRIPTION_URL` points at
+If the exit's public IP changed and `UPSTREAM_SUBSCRIPTION_URL` points at
 the old IP, update it and re-run `sudo raylink relay`, or use a static
-IP/domain for the terminal.
+IP/domain for the exit.
 
 ## Relay: upstream parameters incomplete
 
 ```text
-Error: upstream terminal parameters are incomplete.
+Error: upstream exit parameters are incomplete.
 ```
 
 Provide upstream params via `UPSTREAM_SUBSCRIPTION_URL`, `UPSTREAM_VLESS_URI`,
@@ -97,9 +97,9 @@ The installer auto-detects IPv6 when no IPv4 is available (`PUBLIC_IP_VERSION=au
 If detection fails, set it explicitly:
 
 ```bash
-sudo env PUBLIC_IP_VERSION=6 raylink terminal
+sudo env PUBLIC_IP_VERSION=6 raylink exit
 # or pin the address:
-sudo env PUBLIC_IP=2001:db8::1 raylink terminal
+sudo env PUBLIC_IP=2001:db8::1 raylink exit
 ```
 
 Then check that the generated links bracket the address
@@ -108,7 +108,7 @@ that nginx listens on `[::]`:
 
 ```bash
 sudo ss -ltnp | grep -E ':(443|8080)'
-sudo cat /opt/cloud-xray-terminal/vless-uri.txt
+sudo cat /opt/cloud-xray-exit/vless-uri.txt
 ```
 
 To test a bracketed IPv6 subscription URL with curl, pass `-g` so curl does not
@@ -150,22 +150,22 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.
 ```
 
 This re-downloads the source tree into `/usr/local/lib/raylink/`. Node state in
-`/opt/cloud-xray-terminal/` is untouched.
+`/opt/cloud-xray-exit/` is untouched.
 
 ## Uninstall
 
 ```bash
-sudo systemctl disable --now raylink-terminal-healthcheck.timer 2>/dev/null || true
-sudo rm -f /etc/systemd/system/raylink-terminal-healthcheck.{timer,service}
-sudo rm -f /etc/raylink-terminal-healthcheck.env
+sudo systemctl disable --now raylink-exit-healthcheck.timer 2>/dev/null || true
+sudo rm -f /etc/systemd/system/raylink-exit-healthcheck.{timer,service}
+sudo rm -f /etc/raylink-exit-healthcheck.env
 
 sudo systemctl disable --now xray
 sudo rm -f /etc/systemd/system/xray.service
 sudo systemctl daemon-reload
 
-sudo rm -rf /opt/cloud-xray-terminal /usr/local/etc/xray
-sudo rm -f /etc/nginx/sites-enabled/cloud-xray-terminal-subscription
-sudo rm -f /etc/nginx/sites-available/cloud-xray-terminal-subscription
+sudo rm -rf /opt/cloud-xray-exit /usr/local/etc/xray
+sudo rm -f /etc/nginx/sites-enabled/cloud-xray-exit-subscription
+sudo rm -f /etc/nginx/sites-available/cloud-xray-exit-subscription
 sudo systemctl reload nginx || true
 
 sudo rm -rf /usr/local/lib/raylink /usr/local/bin/raylink

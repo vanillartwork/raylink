@@ -32,11 +32,11 @@ Usage:
   raylink <command> [options]
 
 Commands:
-  terminal            Install / update a terminal (entry) Reality node.
+  exit                Install / update an exit (entry) Reality node.
                       Options:
                         --health-check   Run the lightweight health check only.
   relay               Install / update a relay node that forwards client
-                      traffic to an upstream terminal node.
+                      traffic to an upstream exit node.
                       Requires upstream params (UPSTREAM_VLESS_URI,
                       UPSTREAM_SUBSCRIPTION_URL, or UPSTREAM_* fields).
                       Options:
@@ -45,7 +45,7 @@ Commands:
   help                Show this help.
 
 Configuration is passed through environment variables, e.g.:
-  sudo env PORT=8443 ENABLE_SUBSCRIPTION=false raylink terminal
+  sudo env PORT=8443 ENABLE_SUBSCRIPTION=false raylink exit
 
 See docs/ for the full configuration reference.
 USAGE
@@ -56,10 +56,10 @@ shift || true
 export RAYLINK_COMMAND
 
 case "${RAYLINK_COMMAND}" in
-  terminal)
+  exit)
     # shellcheck source=/dev/null
-    . "${RAYLINK_COMMANDS}/terminal.sh"
-    terminal_main "$@"
+    . "${RAYLINK_COMMANDS}/exit.sh"
+    exit_main "$@"
     ;;
   relay)
     # shellcheck source=/dev/null

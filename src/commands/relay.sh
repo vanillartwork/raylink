@@ -2,10 +2,10 @@
 # RayLink relay command: full install and lightweight health check.
 #
 # A relay exposes a VLESS Reality inbound to clients and forwards ALL of that
-# traffic to an upstream terminal node (Client -> Relay -> Terminal -> Internet).
+# traffic to an upstream exit node (Client -> Relay -> Exit -> Internet).
 # Orchestration only; reusable logic lives in lib/*.sh. The relay reuses the
 # standard inbound variables (UUID, PRIVATE_KEY, ...) for its client-facing
-# Reality endpoint, and UPSTREAM_* variables for the link to the terminal.
+# Reality endpoint, and UPSTREAM_* variables for the link to the exit.
 
 # Persist the relay runtime environment for timer-invoked health checks.
 # Detection results (PUBLIC_IP/family/derived hosts) are NOT persisted so each
@@ -64,7 +64,7 @@ write_relay_healthcheck_env_file() {
 append_upstream_info() {
   cat >> "${INFO_FILE}" <<UPSTREAM_INFO_EOF
 
-Upstream terminal (relay -> terminal, kept on this server only):
+Upstream exit (relay -> exit, kept on this server only):
   Address:        ${UPSTREAM_ADDRESS}
   Port:           ${UPSTREAM_PORT}
   Flow:           ${UPSTREAM_FLOW}
@@ -73,7 +73,7 @@ Upstream terminal (relay -> terminal, kept on this server only):
   Short ID:       ${UPSTREAM_SHORT_ID:-}
   Subscription:   ${UPSTREAM_SUBSCRIPTION_URL:-(none)}
 
-Note: the client subscription above exposes ONLY the relay. Upstream terminal
+Note: the client subscription above exposes ONLY the relay. Upstream exit
 parameters are never published to clients.
 UPSTREAM_INFO_EOF
   chmod 600 "${INFO_FILE}"
@@ -121,7 +121,7 @@ run_relay_healthcheck_mode() {
 
   echo "Relay health check complete. Client files and subscription data are up to date."
   echo "Current public IPv4: ${PUBLIC_IP}"
-  echo "Upstream terminal: ${UPSTREAM_ADDRESS}:${UPSTREAM_PORT}"
+  echo "Upstream exit: ${UPSTREAM_ADDRESS}:${UPSTREAM_PORT}"
   if is_true "${ENABLE_SUBSCRIPTION}"; then
     echo "Subscription URL: ${SUBSCRIPTION_URL_CLASH}"
   fi
@@ -133,9 +133,9 @@ run_relay_full_install() {
 
   # Fail fast before installing anything ONLY if there is no upstream input
   # this run AND no usable saved upstream. A re-run with no new input safely
-  # reuses /opt/cloud-xray-relay/upstream.env (idempotent, like terminal).
+  # reuses /opt/cloud-xray-relay/upstream.env (idempotent, like exit).
   if ! has_upstream_input && ! has_saved_upstream_config; then
-    echo "Error: no upstream terminal provided and none saved on this server."
+    echo "Error: no upstream exit provided and none saved on this server."
     print_missing_upstream_help
     echo "Nothing was installed."
     exit 1
@@ -157,10 +157,10 @@ run_relay_full_install() {
   # Validate the upstream BEFORE touching Xray, the running relay service, or
   # any live config. If this fails we exit having changed nothing that affects
   # a currently-working relay.
-  echo "[4/13] Loading and validating upstream terminal parameters..."
+  echo "[4/13] Loading and validating upstream exit parameters..."
   load_upstream_for_install
   validate_upstream_config
-  echo "Upstream terminal: ${UPSTREAM_ADDRESS}:${UPSTREAM_PORT} (SNI ${UPSTREAM_SERVER_NAME})"
+  echo "Upstream exit: ${UPSTREAM_ADDRESS}:${UPSTREAM_PORT} (SNI ${UPSTREAM_SERVER_NAME})"
 
   echo "[5/13] Installing Xray-core..."
   install_xray
@@ -200,7 +200,7 @@ run_relay_full_install() {
     exit 1
   fi
 
-  echo "[11/13] Running end-to-end relay self-test (Client -> Relay -> Terminal -> Internet)..."
+  echo "[11/13] Running end-to-end relay self-test (Client -> Relay -> Exit -> Internet)..."
   perform_reality_self_test_with_fallbacks
 
   echo "[12/13] Generating relay client config and subscription..."
@@ -216,7 +216,7 @@ run_relay_full_install() {
   echo "=========================================="
   echo "Full server information saved to: ${INFO_FILE}"
   echo "VLESS direct import link saved to: ${VLESS_FILE}"
-  echo "Upstream terminal: ${UPSTREAM_ADDRESS}:${UPSTREAM_PORT}"
+  echo "Upstream exit: ${UPSTREAM_ADDRESS}:${UPSTREAM_PORT}"
 
   if is_true "${ENABLE_SUBSCRIPTION}"; then
     echo ""
@@ -233,7 +233,7 @@ run_relay_full_install() {
   else
     echo "Important: allow inbound TCP ${PORT} on the relay (clients connect only to the relay)."
   fi
-  echo "On the TERMINAL server, allow TCP ${UPSTREAM_PORT} from this relay's IP (${PUBLIC_IP})."
+  echo "On the EXIT server, allow TCP ${UPSTREAM_PORT} from this relay's IP (${PUBLIC_IP})."
   echo "Service status, ports, and troubleshooting commands: see the README."
 }
 

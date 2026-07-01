@@ -1,20 +1,20 @@
 # Relay node
 
-A relay sits in front of a terminal node and forwards all client traffic to it:
+A relay sits in front of an exit node and forwards all client traffic to it:
 
 ```text
 Client
 → Relay server:443      (Xray VLESS Reality inbound)
-→ Relay outbound        (Xray VLESS Reality to terminal)
-→ Terminal server:443   (Xray VLESS Reality inbound)
-→ Terminal direct out
+→ Relay outbound        (Xray VLESS Reality to exit)
+→ Exit server:443   (Xray VLESS Reality inbound)
+→ Exit direct out
 → Internet
 ```
 
-Clients connect only to the relay and never see the terminal. Use a relay when
-the client→terminal path is unstable but client→relay and relay→terminal are
-stable, when you want to hide the terminal's real entry, or when you want the
-terminal firewall to only accept the relay's IP.
+Clients connect only to the relay and never see the exit. Use a relay when
+the client→exit path is unstable but client→relay and relay→exit are
+stable, when you want to hide the exit's real entry, or when you want the
+exit firewall to only accept the relay's IP.
 
 Trade-offs: one extra hop of latency, traffic billed on both servers, and a
 failure on either node breaks the chain.
@@ -23,10 +23,10 @@ failure on either node breaks the chain.
 > are the same as any node — see [getting-started.md](getting-started.md). This
 > page covers what is relay-specific.
 
-## Prerequisite: a working terminal
+## Prerequisite: a working exit
 
-The relay needs upstream terminal parameters. Deploy a terminal first (see
-[terminal.md](terminal.md)) and grab its VLESS link or subscription URL.
+The relay needs upstream exit parameters. Deploy an exit first (see
+[exit.md](exit.md)) and grab its VLESS link or subscription URL.
 
 ## Two Reality parameter sets
 
@@ -37,28 +37,28 @@ A relay has two sets, kept strictly separate:
   `REALITY_SERVER_NAME`, `CLIENT_FINGERPRINT`, `FLOW`, `PORT`). These are
   generated on the relay and are what the client subscription exposes. You can
   pin them with the `RELAY_*` aliases (`RELAY_UUID`, `RELAY_PRIVATE_KEY`, …).
-- **Upstream (relay → terminal)** — the `UPSTREAM_*` variables, taken from the
-  terminal. Stored only in `/opt/cloud-xray-relay/upstream.env`, never published.
+- **Upstream (relay → exit)** — the `UPSTREAM_*` variables, taken from the
+  exit. Stored only in `/opt/cloud-xray-relay/upstream.env`, never published.
 
 ## Install
 
 The relay needs upstream parameters. Pick one of three ways, easiest last.
 
 Subscription URL (recommended — health check can auto-refresh it). Use the
-terminal's **Universal URI-list** endpoint (`/sub/TOKEN`), which returns the
+exit's **Universal URI-list** endpoint (`/sub/TOKEN`), which returns the
 base64 VLESS URI list. Do **not** use the `/clash.yaml` endpoint here — the
 relay parses a `vless://` URI, not a Clash YAML.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh \
-  | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN' bash -s -- relay
+  | sudo env UPSTREAM_SUBSCRIPTION_URL='http://EXIT_IP:8080/sub/TOKEN' bash -s -- relay
 ```
 
-Terminal VLESS link:
+Exit VLESS link:
 
 ```bash
 curl -fsSL .../install.sh \
-  | sudo env UPSTREAM_VLESS_URI='vless://UUID@TERMINAL_IP:443?...' bash -s -- relay
+  | sudo env UPSTREAM_VLESS_URI='vless://UUID@EXIT_IP:443?...' bash -s -- relay
 ```
 
 Individual fields:
@@ -82,10 +82,10 @@ sudo raylink relay --health-check  # run a health check
 
 Because the relay routes every inbound connection to the upstream, the
 end-to-end self-test (a temporary local SOCKS client → relay inbound →
-terminal → internet) validates the complete path in one shot. If it fails,
+exit → internet) validates the complete path in one shot. If it fails,
 the relay's inbound Reality target falls back through candidates exactly like
-the terminal; if the *terminal* itself is down, the relay cannot repair it and
-can only refresh upstream parameters from the terminal subscription.
+the exit; if the *exit* itself is down, the relay cannot repair it and
+can only refresh upstream parameters from the exit subscription.
 
 ## Firewall
 
@@ -97,11 +97,11 @@ Relay server:
 | TCP 443 | `0.0.0.0/0` | clients connect to relay |
 | TCP 8080 | your IP | relay subscription (optional) |
 
-Terminal server (tighten once the relay is up):
+Exit server (tighten once the relay is up):
 
 | Port | Source | Purpose |
 |---|---|---|
-| TCP 443 | relay IP (+ your IP if needed) | relay connects to terminal |
+| TCP 443 | relay IP (+ your IP if needed) | relay connects to exit |
 | TCP 8080 | relay IP (+ your IP if needed) | relay refreshes upstream subscription |
 
 ## Health check
@@ -117,14 +117,14 @@ The timer runs `raylink relay --health-check`, which:
 7. On success, rewrites config, restarts, and regenerates client/subscription files.
 8. On total failure, keeps the previous config and exits non-zero.
 
-Note: if the terminal's public IP changes and your `UPSTREAM_SUBSCRIPTION_URL`
+Note: if the exit's public IP changes and your `UPSTREAM_SUBSCRIPTION_URL`
 points at the old raw IP, the relay can no longer reach it. Use a static IP or
-domain for the terminal.
+domain for the exit.
 
 ## Same-host coexistence
 
 Relay paths, service names, nginx site/zone, and health check units are all
-distinct from the terminal (`/opt/cloud-xray-relay`, `raylink-relay.service`,
+distinct from the exit (`/opt/cloud-xray-relay`, `raylink-relay.service`,
 `raylink-relay-healthcheck.*`), so both roles can be installed on one host for
 testing. You must still give them different `PORT` and `SUB_PORT` values, since
 two services cannot share a port.

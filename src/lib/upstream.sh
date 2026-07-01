@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Relay upstream: the parameters the relay uses to connect to the terminal node.
+# Relay upstream: the parameters the relay uses to connect to the exit node.
 #
 # These live ONLY on the relay server (UPSTREAM_ENV_FILE) and are never exposed
 # in the relay's client subscription. Inputs are accepted three ways, in
 # priority order: explicit UPSTREAM_* fields, UPSTREAM_VLESS_URI, or
 # UPSTREAM_SUBSCRIPTION_URL (which can also be refreshed by the health check).
 
-# Parse a terminal VLESS URI into UPSTREAM_* variables.
+# Parse an exit VLESS URI into UPSTREAM_* variables.
 #   vless://UUID@HOST:PORT?encryption=none&security=reality&sni=..&fp=..&pbk=..&sid=..&type=tcp&flow=..#name
 parse_upstream_vless_uri() {
   local uri="${1:-}"
@@ -57,8 +57,8 @@ parse_upstream_vless_uri() {
   IFS="${old_ifs}"
 }
 
-# Fetch the terminal subscription and parse the first VLESS URI it contains.
-# The terminal /vless endpoint returns a base64-encoded URI list; plain text is
+# Fetch the exit subscription and parse the first VLESS URI it contains.
+# The exit /vless endpoint returns a base64-encoded URI list; plain text is
 # also tolerated. Sets UPSTREAM_CHANGED=true when the effective target differs.
 refresh_upstream_from_subscription() {
   local url="${1:-${UPSTREAM_SUBSCRIPTION_URL:-}}"
@@ -116,9 +116,9 @@ has_saved_upstream_config() {
 }
 
 print_missing_upstream_help() {
-  echo "A relay requires upstream terminal parameters. Provide one of:" >&2
-  echo "  UPSTREAM_SUBSCRIPTION_URL=http://TERMINAL_IP:8080/sub/TOKEN   (recommended)" >&2
-  echo "  UPSTREAM_VLESS_URI='vless://...'                              (terminal link)" >&2
+  echo "A relay requires upstream exit parameters. Provide one of:" >&2
+  echo "  UPSTREAM_SUBSCRIPTION_URL=http://EXIT_IP:8080/sub/TOKEN   (recommended)" >&2
+  echo "  UPSTREAM_VLESS_URI='vless://...'                              (exit link)" >&2
   echo "  UPSTREAM_ADDRESS=.. UPSTREAM_UUID=.. UPSTREAM_PUBLIC_KEY=..   (individual fields)" >&2
   echo "See docs/relay.md." >&2
 }
@@ -175,7 +175,7 @@ load_upstream_for_install() {
 
 # Health check. Load the saved upstream, then best-effort refresh from the
 # subscription if one is configured. A failed refresh keeps the existing saved
-# upstream so a transient terminal/network blip does not break a working relay.
+# upstream so a transient exit/network blip does not break a working relay.
 load_upstream_for_healthcheck() {
   UPSTREAM_CHANGED="false"
   _load_saved_upstream
@@ -191,7 +191,7 @@ load_upstream_for_healthcheck() {
 
 validate_upstream_config() {
   if [ -z "${UPSTREAM_ADDRESS:-}" ] || [ -z "${UPSTREAM_UUID:-}" ] || [ -z "${UPSTREAM_PUBLIC_KEY:-}" ]; then
-    echo "Error: upstream terminal parameters are incomplete." >&2
+    echo "Error: upstream exit parameters are incomplete." >&2
     echo "Provide UPSTREAM_VLESS_URI, UPSTREAM_SUBSCRIPTION_URL, or the individual" >&2
     echo "UPSTREAM_ADDRESS / UPSTREAM_UUID / UPSTREAM_PUBLIC_KEY (and SERVER_NAME / SHORT_ID)." >&2
     exit 1

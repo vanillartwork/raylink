@@ -173,7 +173,7 @@ write_xray_config() {
 }
 
 # Relay config: VLESS Reality inbound (relay-facing client params) plus a
-# VLESS Reality outbound to the upstream terminal, with routing that sends all
+# VLESS Reality outbound to the upstream exit, with routing that sends all
 # inbound traffic to the upstream. Inbound params reuse the standard variable
 # names (UUID, PRIVATE_KEY, ...); upstream params use UPSTREAM_* variables.
 write_relay_xray_config() {

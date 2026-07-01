@@ -315,8 +315,8 @@ apply_reality_candidate() {
 
 restart_xray_with_current_reality_target() {
   validate_reality_inputs
-  # The config writer is role-specific: terminal writes the server config,
-  # relay writes the inbound+upstream config. Defaults to the terminal writer.
+  # The config writer is role-specific: exit writes the server config,
+  # relay writes the inbound+upstream config. Defaults to the exit writer.
   "${XRAY_CONFIG_WRITER:-write_xray_config}"
   "${XRAY_BIN}" run -test -config "${XRAY_CONFIG}"
   systemctl restart "${XRAY_SERVICE}"

@@ -23,7 +23,7 @@ deployment, client-ready subscriptions, and automated self-healing.
   URI-list over HTTP; clients import one URL.
 - **Self-healing automation** — a periodic health check re-detects the public IP, runs an
   end-to-end Reality self-test, and automatically attempts recovery (e.g., service restart, config regeneration, upstream refresh, or target fallback) to maintain connectivity.
-- **Relay mode** — chain `Client → Relay → Terminal` to hide the exit node or
+- **Relay mode** — chain `Client → Relay → Exit` to hide the exit node or
   stabilize a flaky client→exit path.
 - **Resilient downloads** — optimized for unstable networks with built-in
   retries, timeouts, and support for custom mirrors/proxies.
@@ -38,11 +38,11 @@ Client → server:443 → Xray VLESS Reality inbound → direct outbound → Int
 ```
 
 In a relay architecture, network traffic is securely routed through an intermediary Relay Node before
-reaching the Terminal Node. This introduces an additional secure routing layer to your 
+reaching the Exit Node. This introduces an additional secure routing layer to your 
 connection. The complete network topology and data flow are as follows:
 
 ```text
-Client → Relay:443 → Terminal:443 → Internet
+Client → Relay:443 → Exit:443 → Internet
 ```
 
 ### Quick start
@@ -52,7 +52,7 @@ Client → Relay:443 → Terminal:443 → Internet
 On a Linux server, allow inbound TCP traffic on ports `443` and `8080`, then run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- terminal
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- exit
 ```
 
 The installer prints your subscription URLs at the end. Import the
@@ -62,15 +62,15 @@ v2rayN / v2rayNG / Hiddify / Shadowrocket.
 Manage the node later:
 
 ```bash
-sudo raylink terminal                 # re-run / update
-sudo raylink terminal --health-check  # run a health check now
+sudo raylink exit                 # re-run / update
+sudo raylink exit --health-check  # run a health check now
 ```
 
-To deploy a Relay node upstream of your existing Terminal node, please log in to your designated relay server and execute the
+To deploy a Relay node upstream of your existing Exit node, please log in to your designated relay server and execute the
 following deployment command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN' bash -s -- relay
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env UPSTREAM_SUBSCRIPTION_URL='http://EXIT_IP:8080/sub/TOKEN' bash -s -- relay
 ```
 
 ### Documentation
@@ -78,7 +78,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.
 | Doc | Contents |
 |---|---|
 | [getting-started](docs/getting-started.md) | Start here — server prep, SSH, importing into clients, downloading config |
-| [terminal](docs/terminal.md) | Terminal node — installation, configuration, management, and health checks |
+| [exit](docs/exit.md) | Exit node — installation, configuration, management, and health checks |
 | [relay](docs/relay.md) | Relay node — architecture, upstream parameters, and firewall configuration |
 | [configuration](docs/configuration.md) | Every environment variable — ports, Reality, DNS profiles, IPv6, metrics, downloads |
 | [troubleshooting](docs/troubleshooting.md) | Common issues, IPv6-only servers, uninstall |
@@ -127,7 +127,7 @@ RayLink 是一个用于在 Linux 服务器上部署和维护个人 Xray REALITY 
 - **一条命令极速部署** — 自动完成 Xray-core 安装、systemd 服务加固、BBR 网络调优及持久化 VLESS Reality 凭据配置，一行代码即可就绪。
 - **开箱即用的客户端订阅** — 通过 HTTP 提供 Clash/Mihomo YAML 配置文件及通用 URI-list，客户端只需导入一个 URL 即可完成节点配置。
 - **自动化自愈机制** — 守护节点长期稳定运行。定时自检会监测服务状态并执行端到端 Reality 测试；在网络环境变化或检测到异常时，可自动重启服务、应对公网 IP 变更更新订阅文件、刷新中转上游参数或执行 fallback 切换。
-- **灵活的中转模式** — 支持 `客户端 → 中转节点 → 终端节点` 架构，有效隐藏真实出口节点，改善并稳定较差的直连链路。
+- **灵活的中转模式** — 支持 `客户端 → 中转节点 → 出口节点` 架构，有效隐藏真实出口节点，改善并稳定较差的直连链路。
 - **网络容错与下载优化** — 专为复杂网络环境设计。内置完善的重试与超时管控机制，并支持灵活配置自定义镜像源，确保在不稳定网络下依然能顺利完成安装与更新。
 - **完善的 IPv6 支持** — 自动识别当前公网地址族，全面兼容双栈网络，并完美支持 IPv6-only VPS。
 - **幂等设计与高可配置性** — 脚本可安全地重复执行；节点的所有默认行为与参数均可通过环境变量进行自定义覆盖。
@@ -138,11 +138,11 @@ RayLink 是一个用于在 Linux 服务器上部署和维护个人 Xray REALITY 
 客户端 → 服务器:443 → Xray VLESS Reality 入站 → direct 出站 → 互联网
 ```
 
-采用中转架构时，网络流量在到达终端节点前，会先经过中继节点进行加密转发。这相当于在原本的直连链路
+采用中转架构时，网络流量在到达出口节点前，会先经过中继节点进行加密转发。这相当于在原本的直连链路
 中引入了一个安全的中间路由层。完整的网络拓扑和数据流向如下：
 
 ```text
-客户端 → 中转节点:443 → 终端节点:443 → 互联网
+客户端 → 中转节点:443 → 出口节点:443 → 互联网
 ```
 
 ### 快速开始
@@ -152,7 +152,7 @@ RayLink 是一个用于在 Linux 服务器上部署和维护个人 Xray REALITY 
 在一台 Linux 服务器上，放行入站端口 `443` 和 `8080` TCP 流量，然后执行下面指令：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- terminal
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- exit
 ```
 
 安装结束时会打印订阅链接：Clash/Mihomo 导入 `…/clash.yaml` URL，
@@ -161,14 +161,14 @@ v2rayN / v2rayNG / Hiddify / Shadowrocket 导入通用 URL。
 之后管理节点：
 
 ```bash
-sudo raylink terminal                 # 重新运行 / 更新
-sudo raylink terminal --health-check  # 立即运行一次自检
+sudo raylink exit                 # 重新运行 / 更新
+sudo raylink exit --health-check  # 立即运行一次自检
 ```
 
-若要为现有的终端节点添加中继转发功能，请在中继服务器上运行以下命令：
+若要为现有的出口节点添加中继转发功能，请在中继服务器上运行以下命令：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN' bash -s -- relay
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env UPSTREAM_SUBSCRIPTION_URL='http://EXIT_IP:8080/sub/TOKEN' bash -s -- relay
 ```
 
 ### 文档
@@ -176,7 +176,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.
 | 文档 | 内容 |
 |---|---|
 | [getting-started](docs/getting-started.md) | 从这里开始 — 服务器准备、SSH、客户端导入、下载配置 |
-| [terminal](docs/terminal.md) | 终端节点 — 安装、选项、管理、自检 |
+| [exit](docs/exit.md) | 出口节点 — 安装、选项、管理、自检 |
 | [relay](docs/relay.md) | 中转节点 — 模型、upstream 参数、防火墙 |
 | [configuration](docs/configuration.md) | 所有环境变量 — 端口、Reality、DNS profile、IPv6、metrics、下载 |
 | [troubleshooting](docs/troubleshooting.md) | 常见问题、IPv6-only 服务器、卸载 |

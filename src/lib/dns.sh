@@ -78,7 +78,7 @@ resolve_dns_profile() {
 }
 
 # Detect the public IP (IPv4 preferred) and resolve the effective DNS profile.
-# Shared by the terminal and relay commands.
+# Shared by the exit and relay commands.
 #
 # PUBLIC_IP_VERSION=auto (default): try IPv4, fall back to IPv6.
 # PUBLIC_IP_VERSION=4 / 6: force a family. A user-provided PUBLIC_IP is
