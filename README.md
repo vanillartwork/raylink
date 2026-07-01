@@ -116,9 +116,8 @@ Released under the [MIT License](./LICENSE).
 
 ## 中文
 
-RayLink 是一个用于在 Linux 服务器上部署和维护个人 Xray REALITY 节点
-（VLESS Reality）的模块化安装器和 CLI，提供一键部署、开箱即用的客户端
-订阅以及自动化自愈机制。
+RayLink 是一个用于在 Linux 服务器上部署和维护个人 Xray REALITY 节点（VLESS Real
+ity）的模块化安装器和 CLI，提供一键部署、开箱即用的客户端订阅以及自动化自愈机制。
 
 > 请仅用于合法、合规的网络访问。云服务器和流量可能产生费用。
 
