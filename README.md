@@ -19,8 +19,8 @@ deployment, client-ready subscriptions, and automated self-healing.
 
 - **One-command deployment** — Xray-core, a hardened systemd service, BBR
   tuning, and persistent VLESS Reality credentials, in a single line.
-- **Client-ready subscriptions** — serves a Clash/Mihomo YAML and a universal
-  URI-list over HTTP; clients import one URL.
+- **Client-ready subscriptions** — serves a Clash/Mihomo YAML and a universal,
+  auto-negotiating subscription over HTTP; clients import a single URL.
 - **Self-healing automation** — a periodic health check re-detects the public IP, runs an
   end-to-end Reality self-test, and automatically attempts recovery (e.g., service restart, config regeneration, upstream refresh, or target fallback) to maintain connectivity.
 - **Relay mode** — chain `Client → Relay → Exit` to hide the exit node or
@@ -55,9 +55,9 @@ On a Linux server, allow inbound TCP traffic on ports `443` and `8080`, then run
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- exit
 ```
 
-The installer prints your subscription URLs at the end. Import the
-`…/clash.yaml` URL into Clash/Mihomo, or the universal URL into
-v2rayN / v2rayNG / Hiddify / Shadowrocket.
+The installer prints a **Universal Subscription URL** and a **Clash
+Subscription URL** at the end — import whichever your client supports (see
+[importing into clients](docs/getting-started.md)).
 
 Manage the node later:
 
@@ -124,7 +124,7 @@ Reality）的模块化安装器和 CLI，提供一键部署、开箱即用的客
 ### 核心特性
 
 - **一条命令极速部署** — 自动完成 Xray-core 安装、systemd 服务加固、BBR 网络调优及持久化 VLESS Reality 凭据配置，一行代码即可就绪。
-- **开箱即用的客户端订阅** — 通过 HTTP 提供 Clash/Mihomo 配置文件及通用 URI-list，客户端只需导入一个 URL 即可连接使用。
+- **开箱即用的客户端订阅** — 通过 HTTP 提供 Clash/Mihomo 配置文件和一个自动协商格式的通用订阅，客户端只需导入一个 URL 即可连接使用。
 - **自动化自愈机制** — 服务器长期定时自检，监测服务状态并执行端到端 Reality 测试；在网络环境变化或检测到异常时，可自动重启服务、应对公网 IP 变更更新订阅文件、刷新中转上游参数或执行 fallback 切换。
 - **灵活的中转模式** — 支持 `客户端 → 中转节点 → 出口节点` 架构，有效隐藏真实出口节点，改善并稳定较差的直连链路。
 - **网络容错与下载优化** — 针对复杂网络环境优化。内置完善的重试与超时管控机制，并支持灵活配置自定义镜像源，在不稳定网络下依然能顺利安装与更新。
@@ -154,8 +154,8 @@ Reality）的模块化安装器和 CLI，提供一键部署、开箱即用的客
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo bash -s -- exit
 ```
 
-安装结束时会打印订阅链接：Clash/Mihomo 导入 `…/clash.yaml` URL，
-v2rayN / v2rayNG / Hiddify / Shadowrocket 导入通用 URL。
+安装结束时会打印 **Universal Subscription URL** 和 **Clash Subscription URL**，
+按你的客户端支持情况导入即可（客户端兼容性见[客户端导入](docs/getting-started.md)）。
 
 之后管理节点：
 

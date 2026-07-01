@@ -106,15 +106,16 @@ run_full_install() {
   echo "Setup complete"
   echo "=========================================="
   echo "Full server information saved to: ${INFO_FILE}"
-  echo "VLESS direct import link saved to: ${VLESS_FILE}"
 
+  echo ""
   if is_true "${ENABLE_SUBSCRIPTION}"; then
-    echo ""
-    echo "Subscription URLs (import these in your client):"
-    echo "  Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket):"
+    echo "Universal Subscription URL:"
     echo "    ${SUBSCRIPTION_URL_UNIVERSAL}"
-    echo "  Mihomo / Clash Meta / FlClash / Clash Verge Rev:"
+    echo "Clash Subscription URL:"
     echo "    ${SUBSCRIPTION_URL_CLASH}"
+  else
+    echo "Direct VLESS Link:"
+    echo "    ${VLESS_URI}"
   fi
 
   echo ""
@@ -123,7 +124,7 @@ run_full_install() {
   else
     echo "Important: allow inbound TCP ${PORT} in your cloud firewall/security group."
   fi
-  echo "Service status, ports, and troubleshooting commands: see the README."
+  echo "Client compatibility, service status, and troubleshooting: see the README."
 }
 
 exit_main() {

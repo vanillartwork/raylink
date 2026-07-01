@@ -40,7 +40,7 @@ The full install: installs packages, applies TCP tuning (BBR), detects the
 public IP and DNS profile, installs Xray-core, loads or generates Reality
 credentials, checks the Reality target, writes the Xray config and systemd unit,
 runs the end-to-end Reality self-test with fallback target selection, generates
-the Clash YAML and VLESS URI-list subscription, and installs the health check
+the Clash YAML and the universal subscription, and installs the health check
 timer.
 
 ## Generated files

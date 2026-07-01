@@ -215,16 +215,17 @@ run_relay_full_install() {
   echo "Relay setup complete"
   echo "=========================================="
   echo "Full server information saved to: ${INFO_FILE}"
-  echo "VLESS direct import link saved to: ${VLESS_FILE}"
   echo "Upstream exit: ${UPSTREAM_ADDRESS}:${UPSTREAM_PORT}"
 
+  echo ""
   if is_true "${ENABLE_SUBSCRIPTION}"; then
-    echo ""
-    echo "Subscription URLs (import these in your client):"
-    echo "  Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket):"
+    echo "Universal Subscription URL:"
     echo "    ${SUBSCRIPTION_URL_UNIVERSAL}"
-    echo "  Mihomo / Clash Meta / FlClash / Clash Verge Rev:"
+    echo "Clash Subscription URL:"
     echo "    ${SUBSCRIPTION_URL_CLASH}"
+  else
+    echo "Direct VLESS Link:"
+    echo "    ${VLESS_URI}"
   fi
 
   echo ""
@@ -234,7 +235,7 @@ run_relay_full_install() {
     echo "Important: allow inbound TCP ${PORT} on the relay (clients connect only to the relay)."
   fi
   echo "On the EXIT server, allow TCP ${UPSTREAM_PORT} from this relay's IP (${PUBLIC_IP})."
-  echo "Service status, ports, and troubleshooting commands: see the README."
+  echo "Client compatibility, service status, and troubleshooting: see the README."
 }
 
 # Map RELAY_* aliases onto the standard inbound variable names so the shared

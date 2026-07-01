@@ -43,14 +43,21 @@ saved to `server-info.txt` in the install directory).
 
 ## 4. Import into clients
 
-| Client | Import |
-|---|---|
-| Mihomo / Clash Meta / FlClash / Clash Verge Rev | the `…/sub/TOKEN/clash.yaml` URL |
-| v2rayN / v2rayNG / Hiddify / Shadowrocket | the Universal URI-list URL (`…/sub/TOKEN`) or the direct VLESS link |
+The installer serves three link types. Use the one your client supports:
 
-For Clash/Mihomo clients, import the `clash.yaml` URL, select your node under the
-`GLOBAL` group, then enable system proxy or TUN mode. View the direct VLESS link
-on the server (exit path shown; a relay uses `/opt/cloud-xray-relay`):
+| Link | Endpoint | Use it for |
+|---|---|---|
+| **Universal Subscription URL** | `…/sub/TOKEN` | Auto-negotiating subscription for clients with subscription import — v2rayN, v2rayNG, Hiddify, Shadowrocket, NekoBox, etc. |
+| **Clash Subscription URL** | `…/sub/TOKEN/clash.yaml` | Clash-family clients only — Mihomo, Clash Meta, FlClash, Clash Verge Rev |
+| **Direct VLESS Link** | `vless://…` | Importing a single node by hand, with no subscription |
+
+When HTTP subscription is enabled, the installer prints the two subscription
+URLs; when it is disabled, it prints the Direct VLESS Link instead. All three are
+also in `server-info.txt`.
+
+For Clash/Mihomo clients, import the Clash Subscription URL, select your node
+under the `GLOBAL` group, then enable system proxy or TUN mode. View the Direct
+VLESS Link on the server (exit path shown; a relay uses `/opt/cloud-xray-relay`):
 
 ```bash
 sudo cat /opt/cloud-xray-exit/vless-uri.txt

@@ -82,9 +82,9 @@ INFO_EOF
     cat >> "${INFO_FILE}" <<INFO_SUB_EOF
 
 Subscription URLs:
-  Universal URI-list (v2rayN / v2rayNG / Hiddify / Shadowrocket):
+  Universal Subscription URL:
     ${SUBSCRIPTION_URL_UNIVERSAL}
-  Mihomo / Clash Meta / FlClash / Clash Verge Rev:
+  Clash Subscription URL:
     ${SUBSCRIPTION_URL_CLASH}
 
 Subscription details:
