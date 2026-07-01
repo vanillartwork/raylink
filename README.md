@@ -147,7 +147,7 @@ RayLink 是一个用于在 Linux 服务器上部署和维护个人 Xray REALITY 
 
 ### 快速开始
 
-> 详情参见[此处](docs/getting-started.md)
+> 详细指引参见[此处](docs/getting-started.md)
 
 在一台 Linux 服务器上，放行入站端口 `443` 和 `8080` TCP 流量，然后执行下面指令：
 
