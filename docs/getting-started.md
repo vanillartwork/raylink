@@ -340,11 +340,10 @@ t3.micro
 
 SSH 通常通过一对密钥验证你的身份：**私钥**留在你自己电脑上，**公钥**放到服务器上。
 
-有些服务商在创建实例时会帮你生成密钥对 (例如 AWS 会给你一个 `.pem` 私钥下载);有些则要
-求你上传已有的公钥。如果你还没有密钥对，可以在本地生成,完整步骤见
+有些服务商在创建实例时会帮你生成密钥对 (例如 AWS 会给你一个 `.pem` 私钥下载)；有些则要求你上传已有的公钥。如果你还没有密钥对，可以在本地生成，完整步骤见
 [附录 B](#b-ssh-密钥生成)。
 
-密钥默认存放在 `~/.ssh` 目录，使用标准文件名，大多数 SSH 客户端会自动识别:
+密钥默认存放在 `~/.ssh` 目录，使用标准文件名，大多数 SSH 客户端会自动识别：
 
 | 算法 | 私钥 | 公钥 |
 |---|---|---|
@@ -356,7 +355,7 @@ SSH 通常通过一对密钥验证你的身份：**私钥**留在你自己电脑
 
 #### 1.3 配置防火墙
 
-在云服务商的防火墙（安全组）放行以下入站 TCP 端口:
+在云服务商的防火墙（安全组）放行以下入站 TCP 端口：
 
 | 端口 | 来源 | 用途 |
 |---|---|---|
@@ -367,7 +366,7 @@ SSH 通常通过一对密钥验证你的身份：**私钥**留在你自己电脑
 说明:
 
 - Reality over TCP 不需要 UDP，只开 TCP 即可。
-- 订阅链接包含完整客户端配置;`8080` 尽量只对你自己的 IP 开放，或导入后关闭。
+- 订阅链接包含完整客户端配置；`8080` 尽量只对你自己的 IP 开放，或导入后关闭。
 - 对于 **relay**，则是把出口节点的端口对 relay 的 IP 开放——见 [relay](relay.md)。
 
 > 只在云控制台开端口，有时并不够。很多 Linux 镜像还运行着本地防火墙
@@ -376,7 +375,7 @@ SSH 通常通过一对密钥验证你的身份：**私钥**留在你自己电脑
 
 #### 1.4 通过 SSH 登录
 
-在你电脑上打开终端,使用如下命令:
+在你电脑上打开终端,使用如下命令：
 
 ```bash
 ssh -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]
@@ -408,7 +407,7 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.
 接着看 [章节3](#3-导入客户端)。
 
 要自定义安装（端口、DNS profile、IPv6 等）可传环境变量——见
-[configuration](configuration.md)。示例,使用 `8443` 端口:
+[configuration](configuration.md)。示例，使用 `8443` 端口：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env PORT=8443 bash -s -- exit
@@ -418,18 +417,17 @@ curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.
 
 **中转节点**把所有客户端流量转发到一个已有的出口节点
 (`客户端 → Relay → Exit → 互联网`)。先部署好出口节点，拿到它的
-**Universal Subscription URL**，再在第二台服务器上运行:
+**Universal Subscription URL**，再在第二台服务器上运行：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env UPSTREAM_SUBSCRIPTION_URL='http://203.0.113.10:8080/sub/TOKEN' bash -s -- relay
 ```
 
-把 `203.0.113.10:8080/sub/TOKEN` 换成你出口节点真实的 Universal Subscription URL。
-其他提供 upstream 的方式见 [relay](relay.md)。
+把 `203.0.113.10:8080/sub/TOKEN` 换成你出口节点真实的 Universal Subscription URL。其他提供 upstream 的方式见 [relay](relay.md)。
 
 ### 3. 导入客户端
 
-安装器提供三种链接，按你的客户端支持情况选用:
+安装器提供三种链接，按你的客户端支持情况选用：
 
 | 链接 | 地址 | 适用于 |
 |---|---|---|
@@ -461,13 +459,13 @@ sudo cat /opt/cloud-xray-exit/vless-uri.txt
 scp -i [KEY_FILE] [USERNAME]@[SERVER_PUBLIC_IP]:[REMOTE_PATH] [LOCAL_PATH]
 ```
 
-示例 —— 下载 Clash 配置:
+示例 —— 下载 Clash 配置：
 
 ```bash
 scp -i key.pem ubuntu@203.0.113.10:/opt/cloud-xray-exit/clash.yaml ./raylink-clash.yaml
 ```
 
-示例 —— 下载 Direct VLESS Link 文件:
+示例 —— 下载 Direct VLESS Link 文件：
 
 ```bash
 scp -i key.pem ubuntu@203.0.113.10:/opt/cloud-xray-exit/vless-uri.txt ./vless-uri.txt
@@ -475,7 +473,7 @@ scp -i key.pem ubuntu@203.0.113.10:/opt/cloud-xray-exit/vless-uri.txt ./vless-ur
 
 ### 5. 后续
 
-随时在服务器上管理节点:
+随时在服务器上管理节点：
 
 ```bash
 sudo raylink exit                 # 重新运行 / 更新(安全、幂等)
@@ -483,7 +481,7 @@ sudo raylink exit --health-check  # 立即运行一次自检
 sudo raylink version
 ```
 
-systemd timer 已经在定期自检并自修复。想深入了解:
+systemd timer 已经在定期自检并自修复。想深入了解：
 
 - [exit](exit.md) —— 出口节点安装、选项、自检。
 - [relay](relay.md) —— 中转模型、upstream 参数、防火墙。
@@ -499,13 +497,13 @@ systemd timer 已经在定期自检并自修复。想深入了解:
 只在云控制台开端口有时不够——操作系统本身可能也在跑本地防火墙。建议只配置**已经启用**
 的防火墙。
 
-**ufw** 先检查是否启用:
+**ufw** 先检查是否启用：
 
 ```bash
 sudo ufw status
 ```
 
-如果输出以 `Status: active` 开头,放行端口:
+如果输出以 `Status: active` 开头,放行端口：
 
 ```bash
 sudo ufw allow 443/tcp
@@ -513,13 +511,13 @@ sudo ufw allow 8080/tcp
 sudo ufw reload
 ```
 
-**firewalld** 先检查是否在运行:
+**firewalld** 先检查是否在运行：
 
 ```bash
 sudo systemctl is-active firewalld
 ```
 
-如果输出是 `active`，放行端口并重载:
+如果输出是 `active`，放行端口并重载：
 
 ```bash
 sudo firewall-cmd --permanent --add-port=443/tcp
@@ -532,30 +530,30 @@ sudo firewall-cmd --reload
 如果还没有密钥对，在本地生成一个。推荐 ED25519(短小、现代)；RSA 4096 位是兼容性
 更广的备选。
 
-生成 ED25519 密钥(保存到默认的 `~/.ssh/id_ed25519`):
+生成 ED25519 密钥(保存到默认的 `~/.ssh/id_ed25519`)：
 
 ```bash
 ssh-keygen -t ed25519 -C "you@example.com"
 ```
 
-或在指定路径生成 RSA 密钥:
+或在指定路径生成 RSA 密钥：
 
 ```bash
 ssh-keygen -t rsa -b 4096 -C "you@example.com" -f ~/.ssh/id_rsa
 ```
 
-过程中会提示设置密码:
+过程中会提示设置密码：
 
 - **留空**（连按两次 Enter）更方便。
 - **设置密码** 更安全——每次使用密钥都要输入它。
 
-按 Enter 使用默认保存位置。之后你会得到两个文件:
+按 Enter 使用默认保存位置。之后你会得到两个文件：
 
 - `id_ed25519`(或 `id_rsa`)—— **私钥**,切勿泄露。
 - `id_ed25519.pub`(或 `id_rsa.pub`)—— **公钥**,可以安全上传给 VPS 服务商。
 
 把公钥复制到剪贴板，再粘贴到服务商的 **SSH Keys** 页面("Key Name" 只是标签,不
-影响认证):
+影响认证)：
 
 ```bash
 # macOS
