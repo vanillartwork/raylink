@@ -1,6 +1,6 @@
 # Getting Started
 
-[English](#english) · [中文](#中文)
+[English](#Guide) · [中文](#指南)
 
 This guide takes you from a bare Linux server to a working node and imported
 client. Every step here is shared by both node types — for node-specific options
@@ -11,7 +11,7 @@ address throughout.
 
 ---
 
-## English
+## Guide
 
 ### 1. Prerequisites
 
@@ -284,24 +284,24 @@ Copy the public key to your clipboard, then paste it into your provider's
 **SSH Keys** page (the "Key Name" is just a label and does not affect
 authentication):
 
-```bash
-# macOS
+**# macOS**
+```
 pbcopy < ~/.ssh/id_ed25519.pub
 ```
 
-```bash
-# Linux (X11 / Wayland)
+**# Linux**
+```
 xclip -sel clip < ~/.ssh/id_ed25519.pub
 ```
 
-```powershell
-# Windows (PowerShell)
+**# Windows (PowerShell)**
+```
 Get-Content "$env:USERPROFILE\.ssh\id_ed25519.pub" | Set-Clipboard
 ```
 
 ---
 
-## 中文
+## 指南
 
 本指南带你从一台全新的 Linux 服务器，一路完成节点部署和客户端导入。这里的每一步对两种节点都适用——节点专属选项见 [exit](exit.md) 和 [relay](relay.md)。
 
@@ -552,20 +552,19 @@ ssh-keygen -t rsa -b 4096 -C "you@example.com" -f ~/.ssh/id_rsa
 - `id_ed25519`(或 `id_rsa`)—— **私钥**,切勿泄露。
 - `id_ed25519.pub`(或 `id_rsa.pub`)—— **公钥**,可以安全上传给 VPS 服务商。
 
-把公钥复制到剪贴板，再粘贴到服务商的 **SSH Keys** 页面("Key Name" 只是标签,不
-影响认证)：
+把公钥复制到剪贴板，再粘贴到服务商的 **SSH Keys** 页面("Key Name" 只是标签,不影响认证)：
 
-```bash
-# macOS
+**# macOS**
+```
 pbcopy < ~/.ssh/id_ed25519.pub
 ```
 
-```bash
-# Linux(X11 / Wayland)
+**# Linux**
+```
 xclip -sel clip < ~/.ssh/id_ed25519.pub
 ```
 
-```powershell
-# Windows(PowerShell)
+**# Windows (PowerShell)**
+```
 Get-Content "$env:USERPROFILE\.ssh\id_ed25519.pub" | Set-Clipboard
 ```
