@@ -27,7 +27,7 @@ deployment, client-ready subscriptions, and automated self-healing.
   stabilize a flaky client→exit path.
 - **Resilient downloads** — optimized for unstable networks with built-in
   retries, timeouts, and support for custom mirrors/proxies.
-- **Comprehensive IPv6 support** — automatically detects the current public address family, fully supports dual-stack networks, and works seamlessly on IPv6-only servers.
+- **Comprehensive IPv6 support** — automatically detects the current public address family, fully supports dual-stack networks and IPv6-only servers.
 - **Idempotency & configurability** — safe to re-run; every default is overridable
   through environment variables.
 
@@ -129,7 +129,7 @@ RayLink 是一个用于在 Linux 服务器上部署和维护个人 Xray REALITY 
 - **自动化自愈机制** — 守护节点长期稳定运行。定时自检会监测服务状态并执行端到端 Reality 测试；在网络环境变化或检测到异常时，可自动重启服务、应对公网 IP 变更更新订阅文件、刷新中转上游参数或执行 fallback 切换。
 - **灵活的中转模式** — 支持 `客户端 → 中转节点 → 出口节点` 架构，有效隐藏真实出口节点，改善并稳定较差的直连链路。
 - **网络容错与下载优化** — 专为复杂网络环境设计。内置完善的重试与超时管控机制，并支持灵活配置自定义镜像源，确保在不稳定网络下依然能顺利完成安装与更新。
-- **完善的 IPv6 支持** — 自动识别当前公网地址族，全面兼容双栈网络，并完美支持 IPv6-only VPS。
+- **完善的 IPv6 支持** — 自动识别当前公网地址族，全面兼容双栈网络，并支持 IPv6-only VPS。
 - **幂等设计与高可配置性** — 脚本可安全地重复执行；节点的所有默认行为与参数均可通过环境变量进行自定义覆盖。
 
 ### 工作原理
