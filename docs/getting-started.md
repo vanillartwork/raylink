@@ -83,7 +83,7 @@ Notes:
 - The subscription URL contains your full client configuration; keep `8080`
   restricted to your own IP, or disable it after importing.
 - For a **relay**, you instead open the exit's port to the relay's IP — see
-  [rela](relay.md).
+  [relay](relay.md).
 
 > **Common pitfall.** Opening ports in the cloud console is not always enough.
 > Many Linux images also run a local firewall (`ufw` or `firewalld`) that can
