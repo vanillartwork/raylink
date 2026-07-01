@@ -18,9 +18,9 @@ address throughout.
 #### 1.1 Choose a VPS
 
 You need a Linux server with a public IP address (IPv4 or IPv6) and SSH access.
-Any provider works — AWS EC2, Google Cloud, Oracle Cloud, Azure, Vultr, and most
-budget VPS hosts. Ubuntu Server (24.04 LTS or newer) is recommended, and a small
-instance is plenty for personal use.
+Any provider works — AWS, Google Cloud, Oracle Cloud, Azure or other cloud
+service provider. Ubuntu system is recommended, and a small instance is plenty
+for personal use.
 
 **Example: AWS EC2**
 
@@ -42,7 +42,7 @@ When creating the instance:
 - Allow inbound TCP ports `22`, `443`, and `8080` in the security group (see [1.3](#13-configure-the-firewall)).
 - Assign a public IPv4 (or IPv6) address.
 
-AWS provides the private key as a `.pem` file to download once — keep it safe, as
+Cloud platforms provides the private key as a `.pem` file to download once — keep it safe, as
 it cannot be downloaded again.
 
 #### 1.2 Create an SSH Key Pair
@@ -317,9 +317,8 @@ Get-Content "$env:USERPROFILE\.ssh\id_ed25519.pub" | Set-Clipboard
 
 #### 1.1 选择 VPS
 
-你需要一台有公网 IP(IPv4 或 IPv6)且可 SSH 登录的 Linux 服务器。AWS EC2、Google
-Cloud、Oracle Cloud、Azure、Vultr 以及大多数低价 VPS 均可。推荐 Ubuntu Server
-(24.04 LTS 或更新),个人使用选小规格实例即可。
+你需要一台有公网 IP(IPv4 或 IPv6)且可 SSH 登录的 Linux 服务器。AWS、Google
+Cloud、Oracle Cloud、Azure或者其他云服务。推荐 Ubuntu 系统，个人使用选小规格实例即可。
 
 **示例:AWS EC2**
 
@@ -341,7 +340,7 @@ t3.micro
 - 在安全组放行入站 TCP 端口 `22`、`443`、`8080`(见 [1.3](#13-配置防火墙))。
 - 分配一个公网 IPv4(或 IPv6)地址。
 
-AWS 会提供一个 `.pem` 私钥文件,只能下载一次,请妥善保存。
+云平台通常会提供一个 `.pem` 私钥文件,只能下载一次,请妥善保存。
 
 #### 1.2 创建 SSH 密钥对
 
