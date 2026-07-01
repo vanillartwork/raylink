@@ -37,7 +37,9 @@ deployment, client-ready subscriptions, and automated self-healing.
 Client → server:443 → Xray VLESS Reality inbound → direct outbound → Internet
 ```
 
-A **relay** adds one hop in front of a terminal:
+In a relay architecture, network traffic is securely routed through an intermediary Relay Node before
+reaching the Terminal Node. This introduces an additional secure routing layer to your 
+connection. The complete network topology and data flow are as follows:
 
 ```text
 Client → Relay:443 → Terminal:443 → Internet
@@ -64,10 +66,11 @@ sudo raylink terminal                 # re-run / update
 sudo raylink terminal --health-check  # run a health check now
 ```
 
-Add a Relay in front of an existing Terminal:
+To deploy a Relay node upstream of your existing Terminal node, please log in to your designated relay server and execute the
+following deployment command:
 
 ```bash
-curl -fsSL .../install.sh | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN' bash -s -- relay
+curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN' bash -s -- relay
 ```
 
 ### Documentation
@@ -135,7 +138,8 @@ RayLink 是一个用于在 Linux 服务器上部署和维护个人 Xray REALITY 
 客户端 → 服务器:443 → Xray VLESS Reality 入站 → direct 出站 → 互联网
 ```
 
-中转节点会在终端节点前面多加一跳：
+采用中转架构时，网络流量在到达终端节点前，会先经过中继节点进行加密转发。这相当于在原本的直连链路
+中引入了一个安全的中间路由层。完整的网络拓扑和数据流向如下：
 
 ```text
 客户端 → 中转节点:443 → 终端节点:443 → 互联网
@@ -161,7 +165,7 @@ sudo raylink terminal                 # 重新运行 / 更新
 sudo raylink terminal --health-check  # 立即运行一次自检
 ```
 
-在已有 Terminal 前面加一个 Relay：
+若要为现有的终端节点添加中继转发功能，请在中继服务器上运行以下命令：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/vanillartwork/raylink/main/install.sh | sudo env UPSTREAM_SUBSCRIPTION_URL='http://TERMINAL_IP:8080/sub/TOKEN' bash -s -- relay
