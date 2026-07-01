@@ -1,6 +1,6 @@
 # RayLink
 
-Deploy and maintain personal Xray REALITY proxy nodes with a single [command](#quick-start)!
+Deploy and maintain your Xray REALITY proxy with a single [command](#quick-start)!
 
 [English](#english) · [中文](#中文)
 
