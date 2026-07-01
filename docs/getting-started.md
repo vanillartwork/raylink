@@ -3,14 +3,14 @@
 This guide covers the parts shared by every node type: preparing a server,
 connecting over SSH, importing the generated subscription into clients, and
 downloading config to your computer. For node-specific install commands and
-options, see [exit.md](exit.md) and [relay.md](relay.md).
+options, see [exit](exit.md) and [relay](relay.md).
 
 ## 1. Prepare a server
 
 Any VPS with a public IP and SSH access works (AWS EC2, Google Cloud, Oracle
-Cloud, Azure, Vultr, …). Ubuntu Server (24.04+) is recommended; a small instance
+Cloud, Azure, …). Ubuntu Server (24.04+) is recommended; a small instance
 is plenty for personal use. IPv6-only servers are supported (see
-[configuration.md](configuration.md#public-ip-family--ipv6-only-servers)).
+[configuration](configuration.md#public-ip-family--ipv6-only-servers)).
 
 Open these inbound TCP ports in the cloud firewall / security group:
 
@@ -22,7 +22,7 @@ Open these inbound TCP ports in the cloud firewall / security group:
 
 Reality over TCP needs no UDP. The subscription URL contains your full client
 config — do not publish it. For a relay, the exit's port is opened to the
-relay's IP instead — see [relay.md](relay.md).
+relay's IP instead — see [relay](relay.md).
 
 ## 2. Connect via SSH
 
@@ -35,8 +35,8 @@ Ubuntu cloud images usually use the `ubuntu` user; other providers may use
 
 ## 3. Install a node
 
-- **Exit** (entry/exit node): [exit.md](exit.md)
-- **Relay** (forwards to an upstream exit): [relay.md](relay.md)
+- **Exit** (entry/exit node): [exit](exit.md)
+- **Relay** (forwards to an upstream exit): [relay](relay.md)
 
 The installer prints your subscription URLs when it finishes (they are also
 saved to `server-info.txt` in the install directory).
