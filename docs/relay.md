@@ -6,7 +6,7 @@ A relay sits in front of an exit node and forwards all client traffic to it:
 Client
 → Relay server:443      (Xray VLESS Reality inbound)
 → Relay outbound        (Xray VLESS Reality to exit)
-→ Exit server:443   (Xray VLESS Reality inbound)
+→ Exit server:443       (Xray VLESS Reality inbound)
 → Exit direct out
 → Internet
 ```
