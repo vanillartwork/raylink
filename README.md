@@ -110,7 +110,7 @@ provider to avoid unexpected charges caused by quota exhaustion or node abuse.
 
 ### License
 
-Released under the [MIT License](#license).
+Released under the [MIT License](./license).
 
 ---
 
@@ -209,4 +209,4 @@ raylink/
 
 ### 开源协议
 
-本项目基于 [MIT License](#license) 发布。
+本项目基于 [MIT License](./license) 发布。
