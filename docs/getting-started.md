@@ -250,13 +250,6 @@ sudo firewall-cmd --permanent --add-port=8080/tcp
 sudo firewall-cmd --reload
 ```
 
-Verify:
-
-```bash
-sudo firewall-cmd --list-ports
-# expected: 443/tcp 8080/tcp
-```
-
 ### B. SSH Key Generation
 
 If you do not already have a key pair, generate one locally. ED25519 is
@@ -534,13 +527,6 @@ sudo firewall-cmd --permanent --add-port=8080/tcp
 sudo firewall-cmd --reload
 ```
 
-验证:
-
-```bash
-sudo firewall-cmd --list-ports
-# 预期输出:443/tcp 8080/tcp
-```
-
 ### B. SSH 密钥生成
 
 如果还没有密钥对，在本地生成一个。推荐 ED25519(短小、现代)；RSA 4096 位是兼容性
@@ -558,10 +544,10 @@ ssh-keygen -t ed25519 -C "you@example.com"
 ssh-keygen -t rsa -b 4096 -C "you@example.com" -f ~/.ssh/id_rsa
 ```
 
-过程中会提示设置 passphrase:
+过程中会提示设置密码:
 
-- **留空**(连按两次 Enter)更方便。
-- **设置 passphrase** 更安全——每次使用密钥都要输入它。
+- **留空**（连按两次 Enter）更方便。
+- **设置密码** 更安全——每次使用密钥都要输入它。
 
 按 Enter 使用默认保存位置。之后你会得到两个文件:
 
